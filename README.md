@@ -64,7 +64,6 @@ import (
 
 // Create a slog logger, which:
 //   - Logs to stdout.
-//   - RFC3339 with UTC time format.
 logger := slog.New(slog.NewTextHandler(os.Stdout))
 
 // Echo instance

@@ -24,4 +24,5 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/labstack/echo/v4 v4.10.2
 	github.com/samber/slog-formatter v0.3.3
+	go.uber.org/goleak v1.2.1
 )

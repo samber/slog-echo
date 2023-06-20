@@ -21,7 +21,7 @@ func main() {
 			slogformatter.TimezoneConverter(time.UTC),
 			slogformatter.TimeFormatter(time.RFC3339, nil),
 		)(
-			slog.NewTextHandler(os.Stdout),
+			slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}),
 		),
 	)
 

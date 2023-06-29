@@ -2,6 +2,7 @@ package slogecho
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -38,7 +39,6 @@ func New(logger *slog.Logger) echo.MiddlewareFunc {
 func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) (err error) {
-			c.Path()
 			start := time.Now()
 			path := c.Path()
 
@@ -53,8 +53,15 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			end := time.Now()
 			latency := end.Sub(start)
 
+			status := c.Response().Status
+
+			httpErr := new(echo.HTTPError)
+			if errors.As(err, &httpErr) {
+				status = httpErr.Code
+			}
+
 			attributes := []slog.Attr{
-				slog.Int("status", c.Response().Status),
+				slog.Int("status", status),
 				slog.String("method", c.Request().Method),
 				slog.String("path", path),
 				slog.String("ip", c.RealIP()),

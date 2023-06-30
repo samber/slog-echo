@@ -75,9 +75,9 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			}
 
 			switch {
-			case c.Response().Status >= http.StatusBadRequest && c.Response().Status < http.StatusInternalServerError:
+			case status >= http.StatusBadRequest && status < http.StatusInternalServerError:
 				logger.LogAttrs(context.Background(), config.ClientErrorLevel, err.Error(), attributes...)
-			case c.Response().Status >= http.StatusInternalServerError:
+			case status >= http.StatusInternalServerError:
 				logger.LogAttrs(context.Background(), config.ServerErrorLevel, err.Error(), attributes...)
 			default:
 				logger.LogAttrs(context.Background(), config.DefaultLevel, "Incoming request", attributes...)

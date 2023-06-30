@@ -78,12 +78,15 @@ e.Use(middleware.Recover())
 e.GET("/", func(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
+e.GET("/error", func(c echo.Context) error {
+	return echo.NewHTTPError(http.StatusInternalServerError, "I'm angry")
+})
 
 // Start server
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-04-10T14:00:00Z level=INFO msg="Incoming request"  status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-04-10T14:00:00Z level=INFO msg="Success"  status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
 ```
 
 ### Using custom time formatters
@@ -120,12 +123,15 @@ e.Use(middleware.Recover())
 e.GET("/", func(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
+e.GET("/error", func(c echo.Context) error {
+	return echo.NewHTTPError(http.StatusInternalServerError, "I'm angry")
+})
 
 // Start server
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-04-10T14:00:00Z level=INFO msg="Incoming request"  status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-04-10T14:00:00Z level=INFO msg="Success"  status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
 ```
 
 ### Using custom logger sub-group
@@ -153,12 +159,15 @@ e.Use(middleware.Recover())
 e.GET("/", func(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
+e.GET("/error", func(c echo.Context) error {
+	return echo.NewHTTPError(http.StatusInternalServerError, "I'm angry")
+})
 
 // Start server
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-04-10T14:00:00Z level=INFO msg="Incoming request"  http.status=200 http.method=GET http.path=/ http.ip=::1 http.latency=25.958µs http.user-agent=curl/7.77.0 http.time=2023-04-10T14:00:00Z http.request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-04-10T14:00:00Z level=INFO msg="Success"  http.status=200 http.method=GET http.path=/ http.ip=::1 http.latency=25.958µs http.user-agent=curl/7.77.0 http.time=2023-04-10T14:00:00Z http.request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
 ```
 
 ### Add logger to a single route
@@ -190,7 +199,7 @@ e.GET("/", func(c echo.Context) error {
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-04-10T14:00:00Z level=INFO msg="Incoming request"  status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-04-10T14:00:00Z level=INFO msg="Success"  status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
 ```
 
 ### Adding custom attributes
@@ -226,7 +235,7 @@ e.GET("/", func(c echo.Context) error {
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-04-10T14:00:00Z level=INFO msg="Incoming request" env=production status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-04-10T14:00:00Z level=INFO msg="Success" env=production status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
 ```
 
 ### JSON output
@@ -259,7 +268,7 @@ e.GET("/", func(c echo.Context) error {
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// {"time":"2023-04-10T14:00:00Z","level":"INFO","msg":"Incoming request","env":"production","status":200,"method":"GET","path":"/","ip":"::1","latency":26750,"user-agent":"curl/7.77.0","time":"2023-04-10T14:00:00Z","request-id":"04201917-d7ba-4b20-a3bb-2fffba5f2bd9"}
+// {"time":"2023-04-10T14:00:00Z","level":"INFO","msg":"Success","env":"production","status":200,"method":"GET","path":"/","ip":"::1","latency":"25.958µs","user-agent":"curl/7.77.0","time":"2023-04-10T14:00:00Z","request-id":"04201917-d7ba-4b20-a3bb-2fffba5f2bd9"}
 ```
 
 ## 🤝 Contributing

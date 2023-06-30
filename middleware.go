@@ -39,35 +39,50 @@ func New(logger *slog.Logger) echo.MiddlewareFunc {
 func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) (err error) {
-			start := time.Now()
-			path := c.Path()
+			req := c.Request()
+			res := c.Response()
 
-			requestID := uuid.New().String()
-			if config.WithRequestID {
-				c.Set(requestIDCtx, requestID)
-				c.Response().Header().Set("X-Request-ID", requestID)
+			start := time.Now()
+
+			path := c.Path()
+			if path == "" {
+				path = req.URL.Path
 			}
 
 			err = next(c)
 
+			requestID := req.Header.Get(echo.HeaderXRequestID)
+			if requestID == "" {
+				requestID = res.Header().Get(echo.HeaderXRequestID)
+			}
+			if requestID == "" {
+				requestID = uuid.New().String()
+				res.Header().Set(echo.HeaderXRequestID, requestID)
+			}
+
+			status := res.Status
+			method := req.Method
 			end := time.Now()
 			latency := end.Sub(start)
-
-			status := c.Response().Status
+			ip := c.RealIP()
+			userAgent := req.UserAgent()
 
 			httpErr := new(echo.HTTPError)
-			if errors.As(err, &httpErr) {
+			if err != nil && errors.As(err, &httpErr) {
 				status = httpErr.Code
+				if msg, ok := httpErr.Message.(string); ok {
+					err = errors.New(msg)
+				}
 			}
 
 			attributes := []slog.Attr{
-				slog.Int("status", status),
-				slog.String("method", c.Request().Method),
-				slog.String("path", path),
-				slog.String("ip", c.RealIP()),
-				slog.Duration("latency", latency),
-				slog.String("user-agent", c.Request().UserAgent()),
 				slog.Time("time", end),
+				slog.String("latency", latency.String()),
+				slog.String("method", method),
+				slog.String("path", path),
+				slog.Int("status", status),
+				slog.String("remote-ip", ip),
+				slog.String("user-agent", userAgent),
 			}
 
 			if config.WithRequestID {
@@ -75,12 +90,14 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			}
 
 			switch {
-			case status >= http.StatusBadRequest && status < http.StatusInternalServerError:
-				logger.LogAttrs(context.Background(), config.ClientErrorLevel, err.Error(), attributes...)
 			case status >= http.StatusInternalServerError:
 				logger.LogAttrs(context.Background(), config.ServerErrorLevel, err.Error(), attributes...)
+			case status >= http.StatusBadRequest && status < http.StatusInternalServerError:
+				logger.LogAttrs(context.Background(), config.ClientErrorLevel, err.Error(), attributes...)
+			case status >= http.StatusMultipleChoices && status < http.StatusBadRequest:
+				logger.LogAttrs(context.Background(), config.DefaultLevel, "Redirection", attributes...)
 			default:
-				logger.LogAttrs(context.Background(), config.DefaultLevel, "Incoming request", attributes...)
+				logger.LogAttrs(context.Background(), config.DefaultLevel, "Success", attributes...)
 			}
 
 			return

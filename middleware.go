@@ -51,6 +51,10 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			err = next(c)
 
+			if err != nil {
+				c.Error(err)
+			}
+
 			requestID := req.Header.Get(echo.HeaderXRequestID)
 			if requestID == "" {
 				requestID = res.Header().Get(echo.HeaderXRequestID)
@@ -91,9 +95,17 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			switch {
 			case status >= http.StatusInternalServerError:
-				logger.LogAttrs(context.Background(), config.ServerErrorLevel, err.Error(), attributes...)
+				var errMsg string
+				if err != nil {
+					errMsg = err.Error()
+				}
+				logger.LogAttrs(context.Background(), config.ServerErrorLevel, errMsg, attributes...)
 			case status >= http.StatusBadRequest && status < http.StatusInternalServerError:
-				logger.LogAttrs(context.Background(), config.ClientErrorLevel, err.Error(), attributes...)
+				var errMsg string
+				if err != nil {
+					errMsg = err.Error()
+				}
+				logger.LogAttrs(context.Background(), config.ClientErrorLevel, errMsg, attributes...)
 			case status >= http.StatusMultipleChoices && status < http.StatusBadRequest:
 				logger.LogAttrs(context.Background(), config.DefaultLevel, "Redirection", attributes...)
 			default:

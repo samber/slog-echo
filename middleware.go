@@ -6,9 +6,10 @@ import (
 	"net/http"
 	"time"
 
+	"log/slog"
+
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"golang.org/x/exp/slog"
 )
 
 const requestIDCtx = "slog-echo.request-id"

@@ -63,7 +63,7 @@ import (
 
 // Create a slog logger, which:
 //   - Logs to stdout.
-logger := slog.New(slog.NewTextHandler(os.Stdout))
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 // Echo instance
 e := echo.New()
@@ -106,7 +106,7 @@ logger := slog.New(
 		slogformatter.TimezoneConverter(time.UTC),
 		slogformatter.TimeFormatter(time.DateTime, nil),
 	)(
-		slog.NewTextHandler(os.Stdout),
+		slog.NewTextHandler(os.Stdout, nil),
 	),
 )
 
@@ -144,7 +144,7 @@ import (
 
 // Create a slog logger, which:
 //   - Logs to stdout.
-logger := slog.New(slog.NewTextHandler(os.Stdout))
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 // Echo instance
 e := echo.New()
@@ -180,7 +180,7 @@ import (
 
 // Create a slog logger, which:
 //   - Logs to stdout.
-logger := slog.New(slog.NewTextHandler(os.Stdout))
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 // Echo instance
 e := echo.New()
@@ -212,7 +212,7 @@ import (
 
 // Create a slog logger, which:
 //   - Logs to stdout.
-logger := slog.New(slog.NewTextHandler(os.Stdout))
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 // Add an attribute to all log entries made through this logger.
 logger = logger.With("env", "production")
@@ -248,7 +248,7 @@ import (
 
 // Create a slog logger, which:
 //   - Logs to stdout.
-logger := slog.New(slog.NewJSONHandler(os.Stdout))
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 // Echo instance
 e := echo.New()

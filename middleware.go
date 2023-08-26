@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"log/slog"
 
-
 	"github.com/labstack/echo/v4"
+	"github.com/samber/lo"
 )
 
 type Config struct {
@@ -75,8 +76,16 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				slog.String("method", method),
 				slog.String("path", path),
 				slog.Int("status", status),
-				slog.String("remote-ip", ip),
+				slog.String("ip", ip),
 				slog.String("user-agent", userAgent),
+			}
+
+			xForwardedFor := c.Get(echo.HeaderXForwardedFor).(string)
+			if len(xForwardedFor) > 0 {
+				ips := lo.Map(strings.Split(xForwardedFor, ","), func(ip string, _ int) string {
+					return strings.TrimSpace(ip)
+				})
+				attributes = append(attributes, slog.Any("x-forwarded-for", ips))
 			}
 
 			if config.WithRequestID {

@@ -100,8 +100,8 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				slog.String("user-agent", userAgent),
 			}
 
-			xForwardedFor := c.Get(echo.HeaderXForwardedFor).(string)
-			if len(xForwardedFor) > 0 {
+			xForwardedFor, ok := c.Get(echo.HeaderXForwardedFor).(string)
+			if ok && len(xForwardedFor) > 0 {
 				ips := lo.Map(strings.Split(xForwardedFor, ","), func(ip string, _ int) string {
 					return strings.TrimSpace(ip)
 				})

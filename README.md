@@ -88,6 +88,51 @@ e.Logger.Fatal(e.Start(":4242"))
 // time=2023-04-10T14:00:00Z level=INFO msg="Success"  status=200 method=GET path=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
 ```
 
+### Filters
+
+```go
+import (
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	slogecho "github.com/samber/slog-echo"
+	"log/slog"
+)
+
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+e := echo.New()
+e.Use(
+	slogecho.NewWithFilters(
+		logger,
+		slogecho.Accept(func (c *gin.Context) bool {
+			return xxx
+		}),
+		slogecho.IgnoreStatus(401, 404),
+	),
+)
+```
+
+Available filters:
+- Accept / Ignore
+- AcceptMethod / IgnoreMethod
+- AcceptStatus / IgnoreStatus
+- AcceptStatusGreaterThan / IgnoreStatusLessThan
+- AcceptStatusGreaterThanOrEqual / IgnoreStatusLessThanOrEqual
+- AcceptPath / IgnorePath
+- AcceptPathContains / IgnorePathContains
+- AcceptPathPrefix / IgnorePathPrefix
+- AcceptPathSuffix / IgnorePathSuffix
+- AcceptPathMatch / IgnorePathMatch
+- AcceptHost / IgnoreHost
+- AcceptHostContains / IgnoreHostContains
+- AcceptHostPrefix / IgnoreHostPrefix
+- AcceptHostSuffix / IgnoreHostSuffix
+- AcceptHostMatch / IgnoreHostMatch
+
 ### Using custom time formatters
 
 ```go

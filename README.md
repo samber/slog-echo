@@ -108,7 +108,7 @@ e := echo.New()
 e.Use(
 	slogecho.NewWithFilters(
 		logger,
-		slogecho.Accept(func (c *gin.Context) bool {
+		slogecho.Accept(func (c echo.Context) bool {
 			return xxx
 		}),
 		slogecho.IgnoreStatus(401, 404),

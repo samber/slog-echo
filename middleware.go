@@ -64,17 +64,14 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			start := time.Now()
 
-			path := c.Path()
-			if path == "" {
-				path = req.URL.Path
-			}
-
 			err = next(c)
 
 			if err != nil {
 				c.Error(err)
 			}
 
+			path := req.URL.Path
+			route := c.Path()
 			status := res.Status
 			method := req.Method
 			end := time.Now()
@@ -95,6 +92,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				slog.Duration("latency", latency),
 				slog.String("method", method),
 				slog.String("path", path),
+				slog.String("route", route),
 				slog.Int("status", status),
 				slog.String("ip", ip),
 				slog.String("user-agent", userAgent),

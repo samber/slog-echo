@@ -92,20 +92,25 @@ e.Logger.Fatal(e.Start(":4242"))
 // time=2023-04-10T14:00:00Z level=INFO msg="Success"  status=200 method=GET path=/ route=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
 ```
 
+### Verbose
+
+```go
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+config := sloggin.Config{
+	WithRequestBody: true,
+	WithResponseBody: true,
+	WithRequestHeader: true,
+	WithResponseHeader: true,
+}
+
+e := echo.New()
+e.Use(slogecho.NewWithConfig(logger, config))
+```
+
 ### Filters
 
 ```go
-import (
-	"net/http"
-	"os"
-	"time"
-
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	slogecho "github.com/samber/slog-echo"
-	"log/slog"
-)
-
 logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 e := echo.New()
@@ -185,15 +190,6 @@ e.Logger.Fatal(e.Start(":4242"))
 ### Using custom logger sub-group
 
 ```go
-import (
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	slogecho "github.com/samber/slog-echo"
-	"log/slog"
-)
-
-// Create a slog logger, which:
-//   - Logs to stdout.
 logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 // Echo instance
@@ -221,15 +217,6 @@ e.Logger.Fatal(e.Start(":4242"))
 ### Add logger to a single route
 
 ```go
-import (
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	slogecho "github.com/samber/slog-echo"
-	"log/slog"
-)
-
-// Create a slog logger, which:
-//   - Logs to stdout.
 logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 // Echo instance
@@ -253,15 +240,6 @@ e.Logger.Fatal(e.Start(":4242"))
 ### Adding custom attributes
 
 ```go
-import (
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	slogecho "github.com/samber/slog-echo"
-	"log/slog"
-)
-
-// Create a slog logger, which:
-//   - Logs to stdout.
 logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 // Add an attribute to all log entries made through this logger.
@@ -276,6 +254,8 @@ e.Use(middleware.Recover())
 
 // Routes
 e.GET("/", func(c echo.Context) error {
+	// Add an attribute to a single log entry.
+	slogecho.AddCustomAttributes(c, slog.String("foo", "bar"))
 	return c.String(http.StatusOK, "Hello, World!")
 })
 
@@ -283,21 +263,12 @@ e.GET("/", func(c echo.Context) error {
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-04-10T14:00:00Z level=INFO msg="Success" env=production status=200 method=GET path=/ route=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-04-10T14:00:00Z level=INFO msg="Success" env=production status=200 method=GET path=/ route=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d foo=bar
 ```
 
 ### JSON output
 
 ```go
-import (
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	slogecho "github.com/samber/slog-echo"
-	"log/slog"
-)
-
-// Create a slog logger, which:
-//   - Logs to stdout.
 logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 // Echo instance

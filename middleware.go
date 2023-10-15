@@ -1,8 +1,10 @@
 package slogecho
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -13,12 +15,34 @@ import (
 	"github.com/samber/lo"
 )
 
+const (
+	customAttributesCtxKey = "slog-echo.custom-attributes"
+)
+
+var (
+	HiddenRequestHeaders = map[string]struct{}{
+		"authorization": {},
+		"cookie":        {},
+		"set-cookie":    {},
+		"x-auth-token":  {},
+		"x-csrf-token":  {},
+		"x-xsrf-token":  {},
+	}
+	HiddenResponseHeaders = map[string]struct{}{
+		"set-cookie": {},
+	}
+)
+
 type Config struct {
 	DefaultLevel     slog.Level
 	ClientErrorLevel slog.Level
 	ServerErrorLevel slog.Level
 
-	WithRequestID bool
+	WithRequestID      bool
+	WithRequestBody    bool
+	WithRequestHeader  bool
+	WithResponseBody   bool
+	WithResponseHeader bool
 
 	Filters []Filter
 }
@@ -33,7 +57,11 @@ func New(logger *slog.Logger) echo.MiddlewareFunc {
 		ClientErrorLevel: slog.LevelWarn,
 		ServerErrorLevel: slog.LevelError,
 
-		WithRequestID: true,
+		WithRequestID:      true,
+		WithRequestBody:    false,
+		WithRequestHeader:  false,
+		WithResponseBody:   false,
+		WithResponseHeader: false,
 
 		Filters: []Filter{},
 	})
@@ -49,7 +77,11 @@ func NewWithFilters(logger *slog.Logger, filters ...Filter) echo.MiddlewareFunc 
 		ClientErrorLevel: slog.LevelWarn,
 		ServerErrorLevel: slog.LevelError,
 
-		WithRequestID: true,
+		WithRequestID:      true,
+		WithRequestBody:    false,
+		WithRequestHeader:  false,
+		WithResponseBody:   false,
+		WithResponseHeader: false,
 
 		Filters: filters,
 	})
@@ -63,6 +95,21 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			res := c.Response()
 
 			start := time.Now()
+
+			// dump request body
+			var reqBody []byte
+			if config.WithRequestBody {
+				buf, err := io.ReadAll(c.Request().Body)
+				if err == nil {
+					c.Request().Body = io.NopCloser(bytes.NewBuffer(buf))
+					reqBody = buf
+				}
+			}
+
+			// dump response body
+			if config.WithResponseBody {
+				c.Response().Writer = newBodyWriter(c.Response().Writer)
+			}
 
 			err = next(c)
 
@@ -116,6 +163,42 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				}
 			}
 
+			// request
+			if config.WithRequestBody {
+				attributes = append(attributes, slog.Group("request", slog.String("body", string(reqBody))))
+			}
+			if config.WithRequestHeader {
+				for k, v := range c.Request().Header {
+					if _, found := HiddenRequestHeaders[strings.ToLower(k)]; found {
+						continue
+					}
+					attributes = append(attributes, slog.Group("request", slog.Group("header", slog.Any(k, v))))
+				}
+			}
+
+			// response
+			if config.WithResponseBody {
+				if w, ok := c.Response().Writer.(*bodyWriter); ok {
+					attributes = append(attributes, slog.Group("response", slog.String("body", w.body.String())))
+				}
+			}
+			if config.WithResponseHeader {
+				for k, v := range c.Response().Header() {
+					if _, found := HiddenResponseHeaders[strings.ToLower(k)]; found {
+						continue
+					}
+					attributes = append(attributes, slog.Group("response", slog.Group("header", slog.Any(k, v))))
+				}
+			}
+
+			// custom context values
+			if v := c.Get(customAttributesCtxKey); v != nil {
+				switch attrs := v.(type) {
+				case []slog.Attr:
+					attributes = append(attributes, attrs...)
+				}
+			}
+
 			for _, filter := range config.Filters {
 				if !filter(c) {
 					return
@@ -143,5 +226,18 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			return
 		}
+	}
+}
+
+func AddCustomAttributes(c echo.Context, attr slog.Attr) {
+	v := c.Get(customAttributesCtxKey)
+	if v == nil {
+		c.Set(customAttributesCtxKey, []slog.Attr{attr})
+		return
+	}
+
+	switch attrs := v.(type) {
+	case []slog.Attr:
+		c.Set(customAttributesCtxKey, append(attrs, attr))
 	}
 }

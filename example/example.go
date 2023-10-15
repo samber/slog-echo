@@ -33,6 +33,8 @@ func main() {
 	e := echo.New()
 
 	// Middleware
+	// config := slogecho.Config{WithRequestBody: true, WithResponseBody: true, WithRequestHeader: true, WithResponseHeader: true}
+	// e.Use(slogecho.NewWithConfig(logger, config))
 	e.Use(slogecho.New(logger.WithGroup("http")))
 	e.Use(middleware.Recover())
 
@@ -41,6 +43,7 @@ func main() {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
 	e.GET("/foobar/:id", func(c echo.Context) error {
+		slogecho.AddCustomAttributes(c, slog.String("foo", "bar"))
 		return c.String(http.StatusOK, "Hello, World!")
 	})
 	e.GET("/error", func(c echo.Context) error {

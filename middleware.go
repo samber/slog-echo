@@ -20,6 +20,9 @@ const (
 )
 
 var (
+	RequestBodyMaxSize  = 64 * 1024 // 64KB
+	ResponseBodyMaxSize = 64 * 1024 // 64KB
+
 	HiddenRequestHeaders = map[string]struct{}{
 		"authorization": {},
 		"cookie":        {},
@@ -102,13 +105,17 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				buf, err := io.ReadAll(c.Request().Body)
 				if err == nil {
 					c.Request().Body = io.NopCloser(bytes.NewBuffer(buf))
-					reqBody = buf
+					if len(buf) > RequestBodyMaxSize {
+						reqBody = buf[:RequestBodyMaxSize]
+					} else {
+						reqBody = buf
+					}
 				}
 			}
 
 			// dump response body
 			if config.WithResponseBody {
-				c.Response().Writer = newBodyWriter(c.Response().Writer)
+				c.Response().Writer = newBodyWriter(c.Response().Writer, ResponseBodyMaxSize)
 			}
 
 			err = next(c)

@@ -212,24 +212,17 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				}
 			}
 
-			switch {
-			case status >= http.StatusInternalServerError:
-				var errMsg string
-				if err != nil {
-					errMsg = err.Error()
-				}
-				logger.LogAttrs(context.Background(), config.ServerErrorLevel, errMsg, attributes...)
-			case status >= http.StatusBadRequest && status < http.StatusInternalServerError:
-				var errMsg string
-				if err != nil {
-					errMsg = err.Error()
-				}
-				logger.LogAttrs(context.Background(), config.ClientErrorLevel, errMsg, attributes...)
-			case status >= http.StatusMultipleChoices && status < http.StatusBadRequest:
-				logger.LogAttrs(context.Background(), config.DefaultLevel, "Redirection", attributes...)
-			default:
-				logger.LogAttrs(context.Background(), config.DefaultLevel, "Success", attributes...)
+			level := config.DefaultLevel
+			msg := "Incoming request"
+			if status >= http.StatusInternalServerError {
+				level = config.ServerErrorLevel
+				msg = err.Error()
+			} else if status >= http.StatusBadRequest && status < http.StatusInternalServerError {
+				level = config.ClientErrorLevel
+				msg = err.Error()
 			}
+
+			logger.LogAttrs(context.Background(), level, msg, attributes...)
 
 			return
 		}

@@ -2,7 +2,6 @@ package slogecho
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -222,7 +221,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				msg = err.Error()
 			}
 
-			logger.LogAttrs(context.Background(), level, msg, attributes...)
+			logger.LogAttrs(c.Request().Context(), level, msg, attributes...)
 
 			return
 		}

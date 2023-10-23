@@ -215,10 +215,14 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			msg := "Incoming request"
 			if status >= http.StatusInternalServerError {
 				level = config.ServerErrorLevel
-				msg = err.Error()
+				if err != nil {
+					msg = err.Error()
+				}
 			} else if status >= http.StatusBadRequest && status < http.StatusInternalServerError {
 				level = config.ClientErrorLevel
-				msg = err.Error()
+				if err != nil {
+					msg = err.Error()
+				}
 			}
 
 			logger.LogAttrs(c.Request().Context(), level, msg, attributes...)

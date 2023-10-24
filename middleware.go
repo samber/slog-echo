@@ -217,11 +217,15 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				level = config.ServerErrorLevel
 				if err != nil {
 					msg = err.Error()
+				} else {
+					msg = http.StatusText(status)
 				}
 			} else if status >= http.StatusBadRequest && status < http.StatusInternalServerError {
 				level = config.ClientErrorLevel
 				if err != nil {
 					msg = err.Error()
+				} else {
+					msg = http.StatusText(status)
 				}
 			}
 

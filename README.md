@@ -110,6 +110,7 @@ config := sloggin.Config{
 
 e := echo.New()
 e.Use(slogecho.NewWithConfig(logger, config))
+e.Use(middleware.Recover())
 ```
 
 ### Filters
@@ -127,6 +128,7 @@ e.Use(
 		slogecho.IgnoreStatus(401, 404),
 	),
 )
+e.Use(middleware.Recover())
 ```
 
 Available filters:

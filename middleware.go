@@ -12,6 +12,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/samber/lo"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -45,6 +46,8 @@ type Config struct {
 	WithRequestHeader  bool
 	WithResponseBody   bool
 	WithResponseHeader bool
+	WithSpanID         bool
+	WithTraceID        bool
 
 	Filters []Filter
 }
@@ -64,6 +67,8 @@ func New(logger *slog.Logger) echo.MiddlewareFunc {
 		WithRequestHeader:  false,
 		WithResponseBody:   false,
 		WithResponseHeader: false,
+		WithSpanID:         false,
+		WithTraceID:        false,
 
 		Filters: []Filter{},
 	})
@@ -84,6 +89,8 @@ func NewWithFilters(logger *slog.Logger, filters ...Filter) echo.MiddlewareFunc 
 		WithRequestHeader:  false,
 		WithResponseBody:   false,
 		WithResponseHeader: false,
+		WithSpanID:         false,
+		WithTraceID:        false,
 
 		Filters: filters,
 	})
@@ -167,6 +174,16 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				if requestID != "" {
 					attributes = append(attributes, slog.String("request-id", requestID))
 				}
+			}
+
+			// otel
+			if config.WithTraceID {
+				traceID := trace.SpanFromContext(c.Request().Context()).SpanContext().TraceID().String()
+				attributes = append(attributes, slog.String("trace-id", traceID))
+			}
+			if config.WithSpanID {
+				spanID := trace.SpanFromContext(c.Request().Context()).SpanContext().SpanID().String()
+				attributes = append(attributes, slog.String("span-id", spanID))
 			}
 
 			// request

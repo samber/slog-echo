@@ -96,6 +96,21 @@ e.Logger.Fatal(e.Start(":4242"))
 // time=2023-04-10T14:00:00Z level=INFO msg="Success"  status=200 method=GET path=/ route=/ ip=::1 latency=25.958µs user-agent=curl/7.77.0 time=2023-04-10T14:00:00Z request-id=229c7fc8-64f5-4467-bc4a-940700503b0d
 ```
 
+### OTEL
+
+```go
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+config := sloggin.Config{
+	WithSpanID:  true,
+	WithTraceID: true,
+}
+
+e := echo.New()
+e.Use(slogecho.NewWithConfig(logger, config))
+e.Use(middleware.Recover())
+```
+
 ### Verbose
 
 ```go

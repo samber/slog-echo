@@ -101,7 +101,7 @@ e.Logger.Fatal(e.Start(":4242"))
 ```go
 logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-config := sloggin.Config{
+config := slogecho.Config{
 	WithSpanID:  true,
 	WithTraceID: true,
 }
@@ -116,7 +116,7 @@ e.Use(middleware.Recover())
 ```go
 logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-config := sloggin.Config{
+config := slogecho.Config{
 	WithRequestBody: true,
 	WithResponseBody: true,
 	WithRequestHeader: true,

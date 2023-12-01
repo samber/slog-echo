@@ -41,6 +41,7 @@ type Config struct {
 	ClientErrorLevel slog.Level
 	ServerErrorLevel slog.Level
 
+	WithUserAgent      bool
 	WithRequestID      bool
 	WithRequestBody    bool
 	WithRequestHeader  bool
@@ -62,6 +63,7 @@ func New(logger *slog.Logger) echo.MiddlewareFunc {
 		ClientErrorLevel: slog.LevelWarn,
 		ServerErrorLevel: slog.LevelError,
 
+		WithUserAgent:      false,
 		WithRequestID:      true,
 		WithRequestBody:    false,
 		WithRequestHeader:  false,
@@ -84,6 +86,7 @@ func NewWithFilters(logger *slog.Logger, filters ...Filter) echo.MiddlewareFunc 
 		ClientErrorLevel: slog.LevelWarn,
 		ServerErrorLevel: slog.LevelError,
 
+		WithUserAgent:      false,
 		WithRequestID:      true,
 		WithRequestBody:    false,
 		WithRequestHeader:  false,
@@ -155,7 +158,6 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				slog.String("route", route),
 				slog.Int("status", status),
 				slog.String("ip", ip),
-				slog.String("user-agent", userAgent),
 			}
 
 			xForwardedFor, ok := c.Get(echo.HeaderXForwardedFor).(string)
@@ -164,6 +166,10 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 					return strings.TrimSpace(ip)
 				})
 				attributes = append(attributes, slog.Any("x-forwarded-for", ips))
+			}
+
+			if config.WithUserAgent {
+				attributes = append(attributes, slog.String("user-agent", userAgent))
 			}
 
 			if config.WithRequestID {

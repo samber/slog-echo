@@ -112,6 +112,22 @@ e.Use(slogecho.NewWithConfig(logger, config))
 e.Use(middleware.Recover())
 ```
 
+### Custom log levels
+
+```go
+logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+config := slogecho.Config{
+	DefaultLevel:     slog.LevelInfo,
+	ClientErrorLevel: slog.LevelWarn,
+	ServerErrorLevel: slog.LevelError,
+}
+
+e := echo.New()
+e.Use(slogecho.NewWithConfig(logger, config))
+e.Use(middleware.Recover())
+```
+
 ### Verbose
 
 ```go

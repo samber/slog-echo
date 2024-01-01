@@ -1,9 +1,7 @@
 package slogecho
 
 import (
-	"bytes"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -105,27 +103,16 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 		return func(c echo.Context) (err error) {
 			req := c.Request()
 			res := c.Response()
-
 			start := time.Now()
+			path := req.URL.Path
 
 			// dump request body
-			var reqBody []byte
-			if config.WithRequestBody {
-				buf, err := io.ReadAll(c.Request().Body)
-				if err == nil {
-					c.Request().Body = io.NopCloser(bytes.NewBuffer(buf))
-					if len(buf) > RequestBodyMaxSize {
-						reqBody = buf[:RequestBodyMaxSize]
-					} else {
-						reqBody = buf
-					}
-				}
-			}
+			br := newBodyReader(req.Body, RequestBodyMaxSize, config.WithRequestBody)
+			req.Body = br
 
 			// dump response body
-			if config.WithResponseBody {
-				c.Response().Writer = newBodyWriter(c.Response().Writer, ResponseBodyMaxSize)
-			}
+			bw := newBodyWriter(res.Writer, ResponseBodyMaxSize, config.WithResponseBody)
+			res.Writer = bw
 
 			err = next(c)
 
@@ -133,14 +120,15 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				c.Error(err)
 			}
 
-			path := req.URL.Path
-			route := c.Path()
 			status := res.Status
 			method := req.Method
+			host := req.Host
+			route := c.Path()
 			end := time.Now()
 			latency := end.Sub(start)
-			ip := c.RealIP()
 			userAgent := req.UserAgent()
+			ip := c.RealIP()
+			referer := c.Request().Referer()
 
 			httpErr := new(echo.HTTPError)
 			if err != nil && errors.As(err, &httpErr) {
@@ -150,26 +138,22 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				}
 			}
 
-			attributes := []slog.Attr{
-				slog.Time("time", end),
-				slog.Duration("latency", latency),
+			baseAttributes := []slog.Attr{}
+
+			requestAttributes := []slog.Attr{
+				slog.Time("time", start),
 				slog.String("method", method),
+				slog.String("host", host),
 				slog.String("path", path),
 				slog.String("route", route),
-				slog.Int("status", status),
 				slog.String("ip", ip),
+				slog.String("referer", referer),
 			}
 
-			xForwardedFor, ok := c.Get(echo.HeaderXForwardedFor).(string)
-			if ok && len(xForwardedFor) > 0 {
-				ips := lo.Map(strings.Split(xForwardedFor, ","), func(ip string, _ int) string {
-					return strings.TrimSpace(ip)
-				})
-				attributes = append(attributes, slog.Any("x-forwarded-for", ips))
-			}
-
-			if config.WithUserAgent {
-				attributes = append(attributes, slog.String("user-agent", userAgent))
+			responseAttributes := []slog.Attr{
+				slog.Time("time", end),
+				slog.Duration("latency", latency),
+				slog.Int("status", status),
 			}
 
 			if config.WithRequestID {
@@ -178,47 +162,77 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 					requestID = res.Header().Get(echo.HeaderXRequestID)
 				}
 				if requestID != "" {
-					attributes = append(attributes, slog.String("request-id", requestID))
+					baseAttributes = append(baseAttributes, slog.String("id", requestID))
 				}
 			}
 
 			// otel
 			if config.WithTraceID {
 				traceID := trace.SpanFromContext(c.Request().Context()).SpanContext().TraceID().String()
-				attributes = append(attributes, slog.String("trace-id", traceID))
+				baseAttributes = append(baseAttributes, slog.String("trace-id", traceID))
 			}
 			if config.WithSpanID {
 				spanID := trace.SpanFromContext(c.Request().Context()).SpanContext().SpanID().String()
-				attributes = append(attributes, slog.String("span-id", spanID))
+				baseAttributes = append(baseAttributes, slog.String("span-id", spanID))
 			}
 
-			// request
+			// request body
+			requestAttributes = append(requestAttributes, slog.Int("length", br.bytes))
 			if config.WithRequestBody {
-				attributes = append(attributes, slog.Group("request", slog.String("body", string(reqBody))))
+				requestAttributes = append(requestAttributes, slog.String("body", br.body.String()))
 			}
+
+			// request headers
 			if config.WithRequestHeader {
 				for k, v := range c.Request().Header {
 					if _, found := HiddenRequestHeaders[strings.ToLower(k)]; found {
 						continue
 					}
-					attributes = append(attributes, slog.Group("request", slog.Group("header", slog.Any(k, v))))
+					requestAttributes = append(requestAttributes, slog.Group("header", slog.Any(k, v)))
 				}
 			}
 
-			// response
-			if config.WithResponseBody {
-				if w, ok := c.Response().Writer.(*bodyWriter); ok {
-					attributes = append(attributes, slog.Group("response", slog.String("body", w.body.String())))
-				}
+			if config.WithUserAgent {
+				requestAttributes = append(requestAttributes, slog.String("user-agent", userAgent))
 			}
+
+			xForwardedFor, ok := c.Get(echo.HeaderXForwardedFor).(string)
+			if ok && len(xForwardedFor) > 0 {
+				ips := lo.Map(strings.Split(xForwardedFor, ","), func(ip string, _ int) string {
+					return strings.TrimSpace(ip)
+				})
+				requestAttributes = append(requestAttributes, slog.Any("x-forwarded-for", ips))
+			}
+
+			// response body body
+			responseAttributes = append(responseAttributes, slog.Int("length", bw.bytes))
+			if config.WithResponseBody {
+				responseAttributes = append(responseAttributes, slog.String("body", bw.body.String()))
+			}
+
+			// response headers
 			if config.WithResponseHeader {
 				for k, v := range c.Response().Header() {
 					if _, found := HiddenResponseHeaders[strings.ToLower(k)]; found {
 						continue
 					}
-					attributes = append(attributes, slog.Group("response", slog.Group("header", slog.Any(k, v))))
+					responseAttributes = append(responseAttributes, slog.Group("header", slog.Any(k, v)))
 				}
 			}
+
+			attributes := append(
+				[]slog.Attr{
+					{
+						Key:   "request",
+						Value: slog.GroupValue(requestAttributes...),
+					},
+					{
+						Key:   "response",
+						Value: slog.GroupValue(responseAttributes...),
+					},
+				},
+				baseAttributes...,
+			)
 
 			// custom context values
 			if v := c.Get(customAttributesCtxKey); v != nil {

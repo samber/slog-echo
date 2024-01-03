@@ -105,6 +105,12 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			res := c.Response()
 			start := time.Now()
 			path := req.URL.Path
+			query := req.URL.RawQuery
+
+			params := map[string]string{}
+			for i, k := range c.ParamNames() {
+				params[k] = c.ParamValues()[i]
+			}
 
 			// dump request body
 			br := newBodyReader(req.Body, RequestBodyMaxSize, config.WithRequestBody)
@@ -145,6 +151,8 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				slog.String("method", method),
 				slog.String("host", host),
 				slog.String("path", path),
+				slog.String("query", query),
+				slog.Any("params", params),
 				slog.String("route", route),
 				slog.String("ip", ip),
 				slog.String("referer", referer),

@@ -1,10 +1,17 @@
 package slogecho
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 )
+
+var _ http.ResponseWriter = (*bodyWriter)(nil)
+var _ http.Flusher = (*bodyWriter)(nil)
+var _ http.Hijacker = (*bodyWriter)(nil)
 
 type bodyWriter struct {
 	http.ResponseWriter
@@ -13,7 +20,7 @@ type bodyWriter struct {
 	bytes   int
 }
 
-// implements gin.ResponseWriter
+// implements http.ResponseWriter
 func (w bodyWriter) Write(b []byte) (int, error) {
 	if w.body != nil {
 		if w.body.Len()+len(b) > w.maxSize {
@@ -24,6 +31,22 @@ func (w bodyWriter) Write(b []byte) (int, error) {
 	}
 	w.bytes += len(b)
 	return w.ResponseWriter.Write(b)
+}
+
+// implements http.Flusher
+func (w bodyWriter) Flush() {
+	if w.ResponseWriter.(http.Flusher) != nil {
+		w.ResponseWriter.(http.Flusher).Flush()
+	}
+}
+
+// implements http.Hijacker
+func (w bodyWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if w.ResponseWriter.(http.Hijacker) != nil {
+		return w.ResponseWriter.(http.Hijacker).Hijack()
+	}
+
+	return nil, nil, errors.New("Hijack not supported")
 }
 
 func newBodyWriter(writer http.ResponseWriter, maxSize int, recordBody bool) *bodyWriter {

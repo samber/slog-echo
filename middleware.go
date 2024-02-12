@@ -192,12 +192,16 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			// request headers
 			if config.WithRequestHeader {
+				kv := []any{}
+
 				for k, v := range c.Request().Header {
 					if _, found := HiddenRequestHeaders[strings.ToLower(k)]; found {
 						continue
 					}
-					requestAttributes = append(requestAttributes, slog.Group("header", slog.Any(k, v)))
+					kv = append(kv, slog.Any(k, v))
 				}
+
+				responseAttributes = append(responseAttributes, slog.Group("header", kv...))
 			}
 
 			if config.WithUserAgent {
@@ -220,12 +224,16 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			// response headers
 			if config.WithResponseHeader {
+				kv := []any{}
+
 				for k, v := range c.Response().Header() {
 					if _, found := HiddenResponseHeaders[strings.ToLower(k)]; found {
 						continue
 					}
-					responseAttributes = append(responseAttributes, slog.Group("header", slog.Any(k, v)))
+					kv = append(kv, slog.Any(k, v))
 				}
+
+				responseAttributes = append(responseAttributes, slog.Group("header", kv...))
 			}
 
 			attributes := append(

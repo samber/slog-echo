@@ -201,7 +201,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 					kv = append(kv, slog.Any(k, v))
 				}
 
-				responseAttributes = append(responseAttributes, slog.Group("header", kv...))
+				requestAttributes = append(requestAttributes, slog.Group("header", kv...))
 			}
 
 			if config.WithUserAgent {
@@ -216,7 +216,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				requestAttributes = append(requestAttributes, slog.Any("x-forwarded-for", ips))
 			}
 
-			// response body body
+			// response body
 			responseAttributes = append(responseAttributes, slog.Int("length", bw.bytes))
 			if config.WithResponseBody {
 				responseAttributes = append(responseAttributes, slog.String("body", bw.body.String()))

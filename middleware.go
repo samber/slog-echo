@@ -15,6 +15,8 @@ import (
 
 const (
 	customAttributesCtxKey = "slog-echo.custom-attributes"
+	otelSpanIDKey          = "span-id"
+	otelTraceIDKey         = "trace-id"
 )
 
 var (
@@ -47,6 +49,8 @@ type Config struct {
 	WithResponseHeader bool
 	WithSpanID         bool
 	WithTraceID        bool
+	SpanIDKey          string
+	TraceIDKey         string
 
 	Filters []Filter
 }
@@ -177,11 +181,19 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			// otel
 			if config.WithTraceID {
 				traceID := trace.SpanFromContext(c.Request().Context()).SpanContext().TraceID().String()
-				baseAttributes = append(baseAttributes, slog.String("trace-id", traceID))
+				traceIDKey := otelTraceIDKey
+				if config.TraceIDKey != "" {
+					traceIDKey = config.TraceIDKey
+				}
+				baseAttributes = append(baseAttributes, slog.String(traceIDKey, traceID))
 			}
 			if config.WithSpanID {
 				spanID := trace.SpanFromContext(c.Request().Context()).SpanContext().SpanID().String()
-				baseAttributes = append(baseAttributes, slog.String("span-id", spanID))
+				spanIDKey := otelSpanIDKey
+				if config.SpanIDKey != "" {
+					spanIDKey = config.SpanIDKey
+				}
+				baseAttributes = append(baseAttributes, slog.String(spanIDKey, spanID))
 			}
 
 			// request body

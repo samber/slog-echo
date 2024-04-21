@@ -18,6 +18,9 @@ const (
 )
 
 var (
+	TraceIDKey = "trace-id"
+	SpanIDKey  = "span-id"
+
 	RequestBodyMaxSize  = 64 * 1024 // 64KB
 	ResponseBodyMaxSize = 64 * 1024 // 64KB
 
@@ -177,11 +180,11 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			// otel
 			if config.WithTraceID {
 				traceID := trace.SpanFromContext(c.Request().Context()).SpanContext().TraceID().String()
-				baseAttributes = append(baseAttributes, slog.String("trace-id", traceID))
+				baseAttributes = append(baseAttributes, slog.String(TraceIDKey, traceID))
 			}
 			if config.WithSpanID {
 				spanID := trace.SpanFromContext(c.Request().Context()).SpanContext().SpanID().String()
-				baseAttributes = append(baseAttributes, slog.String("span-id", spanID))
+				baseAttributes = append(baseAttributes, slog.String(SpanIDKey, spanID))
 			}
 
 			// request body
@@ -216,7 +219,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				requestAttributes = append(requestAttributes, slog.Any("x-forwarded-for", ips))
 			}
 
-			// response body body
+			// response body
 			responseAttributes = append(responseAttributes, slog.Int("length", bw.bytes))
 			if config.WithResponseBody {
 				responseAttributes = append(responseAttributes, slog.String("body", bw.body.String()))

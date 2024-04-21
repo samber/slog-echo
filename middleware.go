@@ -112,8 +112,8 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			query := req.URL.RawQuery
 
 			params := map[string]string{}
-			for i, k := range c.ParamNames() {
-				params[k] = c.ParamValues()[i]
+			for _, p := range c.PathParams() {
+				params[p.Name] = p.Value
 			}
 
 			// dump request body

@@ -19,8 +19,9 @@ const (
 )
 
 var (
-	TraceIDKey = "trace-id"
-	SpanIDKey  = "span-id"
+	TraceIDKey   = "trace-id"
+	SpanIDKey    = "span-id"
+	RequestIDKey = "id"
 
 	RequestBodyMaxSize  = 64 * 1024 // 64KB
 	ResponseBodyMaxSize = 64 * 1024 // 64KB
@@ -174,7 +175,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 					requestID = res.Header().Get(echo.HeaderXRequestID)
 				}
 				if requestID != "" {
-					baseAttributes = append(baseAttributes, slog.String("id", requestID))
+					baseAttributes = append(baseAttributes, slog.String(RequestIDKey, requestID))
 				}
 			}
 

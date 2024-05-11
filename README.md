@@ -134,14 +134,16 @@ e.GET("/", func(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
 e.GET("/error", func(c echo.Context) error {
-	return echo.NewHTTPError(http.StatusInternalServerError, "I'm angry")
+	return echo.
+		NewHTTPError(http.StatusInternalServerError, "I'm angry").
+		WithInternal(errors.New("I'm angry internally"))
 })
 
 // Start server
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58.626+02:00 request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58.926+02:00 response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58.626+02:00 request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58.926+02:00 response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d  http.error="map[code:500 internal:I'm angry internally message:I'm angry]" http.internal="I'm angry internally"
 ```
 
 ### OTEL
@@ -262,14 +264,16 @@ e.GET("/", func(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
 e.GET("/error", func(c echo.Context) error {
-	return echo.NewHTTPError(http.StatusInternalServerError, "I'm angry")
+	return echo.
+		NewHTTPError(http.StatusInternalServerError, "I'm angry").
+		WithInternal(errors.New("I'm angry internally"))
 })
 
 // Start server
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58Z request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58Z response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58Z request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58Z response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d error="map[code:500 internal:I'm angry internally message:I'm angry]" internal="I'm angry internally"
 ```
 
 ### Using custom logger sub-group
@@ -289,14 +293,16 @@ e.GET("/", func(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
 e.GET("/error", func(c echo.Context) error {
-	return echo.NewHTTPError(http.StatusInternalServerError, "I'm angry")
+	return echo.
+		NewHTTPError(http.StatusInternalServerError, "I'm angry").
+		WithInternal(errors.New("I'm angry internally"))
 })
 
 // Start server
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production http.request.time=2023-10-15T20:32:58.626+02:00 http.request.method=GET http.request.path=/ http.request.route="" http.request.ip=127.0.0.1:63932 http.request.length=0 http.response.time=2023-10-15T20:32:58.926+02:00 http.response.latency=100ms http.response.status=200 http.response.length=7 http.id=229c7fc8-64f5-4467-bc4a-940700503b0d
+// time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production http.request.time=2023-10-15T20:32:58.626+02:00 http.request.method=GET http.request.path=/ http.request.route="" http.request.ip=127.0.0.1:63932 http.request.length=0 http.response.time=2023-10-15T20:32:58.926+02:00 http.response.latency=100ms http.response.status=200 http.response.length=7 http.id=229c7fc8-64f5-4467-bc4a-940700503b0d http.error="map[code:500 internal:I'm angry internally message:I'm angry]" http.internal="I'm angry internally"
 ```
 
 ### Add logger to a single route
@@ -345,7 +351,7 @@ e.GET("/", func(c echo.Context) error {
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58.626+02:00 request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58.926+02:00 response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d foo=bar
+// time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58.626+02:00 request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58.926+02:00 response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d foo=bar error="map[code:500 internal:I'm angry internally message:I'm angry]" internal="I'm angry internally"
 ```
 
 ### JSON output
@@ -369,12 +375,12 @@ e.GET("/", func(c echo.Context) error {
 e.Logger.Fatal(e.Start(":4242"))
 
 // output:
-// {"time":"2023-10-15T20:32:58.926+02:00","level":"INFO","msg":"Success","env":"production","http":{"request":{"time":"2023-10-15T20:32:58.626+02:00","method":"GET","path":"/","route":"","ip":"127.0.0.1:55296","length":0},"response":{"time":"2023-10-15T20:32:58.926+02:00","latency":100000,"status":200,"length":7},"id":"04201917-d7ba-4b20-a3bb-2fffba5f2bd9"}}
+// {"time":"2023-10-15T20:32:58.926+02:00","level":"INFO","msg":"Success","env":"production","http":{"request":{"time":"2023-10-15T20:32:58.626+02:00","method":"GET","path":"/","route":"","ip":"127.0.0.1:55296","length":0},"response":{"time":"2023-10-15T20:32:58.926+02:00","latency":100000,"status":200,"length":7},"id":"04201917-d7ba-4b20-a3bb-2fffba5f2bd9"}, "error": {"code":500, "internal":"I'm angry internally", "message":"I'm angry"}, "internal": "I'm angry internally"}
 ```
 
 ## 🤝 Contributing
 
-- Ping me on twitter [@samuelberthe](https://twitter.com/samuelberthe) (DMs, mentions, whatever :))
+- Ping me on Twitter [@samuelberthe](https://twitter.com/samuelberthe) (DMs, mentions, whatever :))
 - Fork the [project](https://github.com/samber/slog-echo)
 - Fix [open issues](https://github.com/samber/slog-echo/issues) or request new features
 

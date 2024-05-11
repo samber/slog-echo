@@ -264,6 +264,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			level := config.DefaultLevel
 			msg := "Incoming request"
+
 			if status >= http.StatusInternalServerError {
 				level = config.ServerErrorLevel
 				if err != nil {
@@ -278,6 +279,18 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				} else {
 					msg = http.StatusText(status)
 				}
+			}
+
+			if httpErr != nil {
+				attributes = append(
+					attributes,
+					slog.Any("error", map[string]any{
+						"code":     httpErr.Code,
+						"message":  httpErr.Message,
+						"internal": httpErr.Internal,
+					}),
+					slog.String("internal", httpErr.Internal.Error()),
+				)
 			}
 
 			logger.LogAttrs(c.Request().Context(), level, msg, attributes...)

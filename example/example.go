@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"time"
@@ -47,7 +48,9 @@ func main() {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
 	e.GET("/error", func(c echo.Context) error {
-		return echo.NewHTTPError(http.StatusInternalServerError, "A simulated error")
+		return echo.
+			NewHTTPError(http.StatusInternalServerError, "A simulated error").
+			WithInternal(errors.New("A simulated internal error"))
 	})
 
 	// Start server

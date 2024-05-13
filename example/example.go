@@ -47,10 +47,16 @@ func main() {
 		slogecho.AddCustomAttributes(c, slog.String("foo", "bar"))
 		return c.String(http.StatusOK, "Hello, World!")
 	})
-	e.GET("/error", func(c echo.Context) error {
+	e.GET("/error1", func(c echo.Context) error {
 		return echo.
 			NewHTTPError(http.StatusInternalServerError, "A simulated error").
 			WithInternal(errors.New("A simulated internal error"))
+	})
+	e.GET("/error2", func(c echo.Context) error {
+		return echo.NewHTTPError(http.StatusInternalServerError, "A simulated error")
+	})
+	e.GET("/error3", func(c echo.Context) error {
+		return errors.New("A simulated error")
 	})
 
 	// Start server

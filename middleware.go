@@ -289,8 +289,11 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 						"message":  httpErr.Message,
 						"internal": httpErr.Internal,
 					}),
-					slog.String("internal", httpErr.Internal.Error()),
 				)
+
+				if httpErr.Internal != nil {
+					attributes = append(attributes, slog.String("internal", httpErr.Internal.Error()))
+				}
 			}
 
 			logger.LogAttrs(c.Request().Context(), level, msg, attributes...)

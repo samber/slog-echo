@@ -3,11 +3,10 @@ package slogecho
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
-
-	"log/slog"
 
 	"github.com/labstack/echo/v4"
 	"github.com/samber/lo"
@@ -141,7 +140,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			ip := c.RealIP()
 			referer := c.Request().Referer()
 
-			httpErr := new(echo.HTTPError)
+			var httpErr *echo.HTTPError
 			if err != nil && errors.As(err, &httpErr) {
 				status = httpErr.Code
 				if msg, ok := httpErr.Message.(string); ok {

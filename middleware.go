@@ -127,7 +127,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			err = next(c)
 
 			if err != nil {
-				c.Error(err)
+				return err
 			}
 
 			status := res.Status

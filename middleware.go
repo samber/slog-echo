@@ -127,7 +127,11 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			err = next(c)
 
 			if err != nil {
-				c.Error(err)
+				if _, ok := err.(*echo.HTTPError); !ok {
+					err = echo.
+						NewHTTPError(http.StatusInternalServerError).
+						WithInternal(err)
+				}
 			}
 
 			status := res.Status

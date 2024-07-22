@@ -144,11 +144,13 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			ip := c.RealIP()
 			referer := c.Request().Referer()
 
+			errMsg := err
+
 			var httpErr *echo.HTTPError
 			if err != nil && errors.As(err, &httpErr) {
 				status = httpErr.Code
 				if msg, ok := httpErr.Message.(string); ok {
-					err = errors.New(msg)
+					errMsg = errors.New(msg)
 				}
 			}
 
@@ -271,14 +273,14 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			if status >= http.StatusInternalServerError {
 				level = config.ServerErrorLevel
 				if err != nil {
-					msg = err.Error()
+					msg = errMsg.Error()
 				} else {
 					msg = http.StatusText(status)
 				}
 			} else if status >= http.StatusBadRequest && status < http.StatusInternalServerError {
 				level = config.ClientErrorLevel
 				if err != nil {
-					msg = err.Error()
+					msg = errMsg.Error()
 				} else {
 					msg = http.StatusText(status)
 				}

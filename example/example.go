@@ -8,8 +8,8 @@ import (
 
 	"log/slog"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	slogecho "github.com/samber/slog-echo"
 	slogformatter "github.com/samber/slog-formatter"
 )
@@ -60,7 +60,7 @@ func main() {
 	})
 
 	// Start server
-	e.Logger.Fatal(e.Start(":4242"))
+	e.Logger.Error(e.Start(":4242"))
 
 	// output:
 	// time=2023-04-10T14:00:00Z level=INFO msg="Success" env=production http.status=200 http.method=GET http.path=/ http.ip=::1 http.latency=25.958µs http.user-agent=curl/7.77.0 http.time=2023-04-10T14:00:00Z http.request-id=229c7fc8-64f5-4467-bc4a-940700503b0d

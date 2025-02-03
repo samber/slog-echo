@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/labstack/echo/v4 v4.13.3
-	github.com/samber/lo v1.49.0
+	github.com/samber/lo v1.49.1
 	go.opentelemetry.io/otel/trace v1.29.0
 )
 

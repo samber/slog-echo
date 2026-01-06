@@ -61,7 +61,7 @@ type Config struct {
 // Requests with errors are logged using slog.Error().
 // Requests without errors are logged using slog.Info().
 func New(logger *slog.Logger) echo.MiddlewareFunc {
-	return NewWithConfig(logger, Config{	})
+	return NewWithConfig(logger, DefaultConfig())
 }
 
 // NewWithFilters returns a echo.MiddlewareFunc (middleware) that logs requests using slog.

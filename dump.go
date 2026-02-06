@@ -63,7 +63,7 @@ func (w *bodyWriter) ReadFrom(r io.Reader) (int64, error) {
 			return n, err
 		}
 	}
-	return io.Copy(w, r)
+	return io.Copy(struct{ io.Writer }{w}, r)
 }
 
 func newBodyWriter(writer http.ResponseWriter, maxSize int, recordBody bool) *bodyWriter {

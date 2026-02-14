@@ -112,6 +112,7 @@ type Config struct {
 	WithSpanID         bool
 	WithTraceID        bool
 	WithClientIP       bool
+	WithCustomMessage  func(c echo.Context, err error) string
 
 	Filters []Filter
 }

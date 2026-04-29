@@ -52,7 +52,7 @@ type Config struct {
 	WithSpanID         bool
 	WithTraceID        bool
 	WithClientIP       bool
-	WithCustomMessage  func(c echo.Context, err error) string
+	WithCustomMessage  func(c *echo.Context, err error) string
 
 	Filters []Filter
 }
@@ -100,15 +100,14 @@ func DefaultConfig() Config {
 // NewWithConfig returns a echo.HandlerFunc (middleware) that logs requests using slog.
 func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (err error) {
+		return func(c *echo.Context) (err error) {
 			req := c.Request()
-			res := c.Response()
 			start := time.Now()
 			path := req.URL.Path
 			query := req.URL.RawQuery
 
 			params := map[string]string{}
-			for _, p := range c.PathParams() {
+			for _, p := range c.PathValues() {
 				params[p.Name] = p.Value
 			}
 
@@ -117,28 +116,25 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			req.Body = br
 
 			// dump response body
-			bw := newBodyWriter(res.Writer, ResponseBodyMaxSize, config.WithResponseBody)
-			res.Writer = bw
+			bw := newBodyWriter(c.Response(), ResponseBodyMaxSize, config.WithResponseBody)
+			c.SetResponse(bw)
 
 			err = next(c)
 
 			if err != nil {
 				if _, ok := err.(*echo.HTTPError); !ok {
-					err = echo.
-						NewHTTPError(http.StatusInternalServerError).
-						WithInternal(err)
-					c.Error(err)
+					err = echo.NewHTTPError(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError)).Wrap(err)
 				}
 			}
 
 			// Pass thru filters and skip early the code below, to prevent unnecessary processing.
 			for _, filter := range config.Filters {
-				if !filter(c) {
+				if !filter(c, err) {
 					return
 				}
 			}
 
-			status := res.Status
+			_, status := echo.ResolveResponseStatus(c.Response(), err)
 			method := req.Method
 			host := req.Host
 			route := c.Path()
@@ -148,14 +144,11 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			ip := c.RealIP()
 			referer := c.Request().Referer()
 
-			errMsg := err
+			errMsg := ""
 
 			var httpErr *echo.HTTPError
 			if err != nil && errors.As(err, &httpErr) {
-				status = httpErr.Code
-				if msg, ok := httpErr.Message.(string); ok {
-					errMsg = errors.New(msg)
-				}
+				errMsg = httpErr.Message
 			}
 
 			baseAttributes := make([]slog.Attr, 0, 3)
@@ -188,7 +181,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			if config.WithRequestID {
 				requestID := req.Header.Get(echo.HeaderXRequestID)
 				if requestID == "" {
-					requestID = res.Header().Get(echo.HeaderXRequestID)
+					requestID = c.Response().Header().Get(echo.HeaderXRequestID)
 				}
 				if requestID != "" {
 					baseAttributes = append(baseAttributes, slog.String(RequestIDKey, requestID))
@@ -278,14 +271,14 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			if status >= http.StatusInternalServerError {
 				level = config.ServerErrorLevel
 				if err != nil {
-					msg = errMsg.Error()
+					msg = errMsg
 				} else {
 					msg = http.StatusText(status)
 				}
 			} else if status >= http.StatusBadRequest && status < http.StatusInternalServerError {
 				level = config.ClientErrorLevel
 				if err != nil {
-					msg = errMsg.Error()
+					msg = errMsg
 				} else {
 					msg = http.StatusText(status)
 				}
@@ -297,17 +290,17 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 					slog.Any("error", map[string]any{
 						"code":     httpErr.Code,
 						"message":  httpErr.Message,
-						"internal": httpErr.Internal,
+						"internal": httpErr.Unwrap(),
 					}),
 				)
 
-				if httpErr.Internal != nil {
-					attributes = append(attributes, slog.String("internal", httpErr.Internal.Error()))
+				if httpErr.Unwrap() != nil {
+					attributes = append(attributes, slog.String("internal", httpErr.Unwrap().Error()))
 				}
 			}
 
 			if config.WithCustomMessage != nil {
-				msg = config.WithCustomMessage(c, errMsg)
+				msg = config.WithCustomMessage(c, err)
 			}
 
 			logger.LogAttrs(c.Request().Context(), level, msg, attributes...)
@@ -318,7 +311,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 }
 
 // AddCustomAttributes adds custom attributes to the request context.
-func AddCustomAttributes(c echo.Context, attrs ...slog.Attr) {
+func AddCustomAttributes(c *echo.Context, attrs ...slog.Attr) {
 	v := c.Get(customAttributesCtxKey)
 	if v == nil {
 		c.Set(customAttributesCtxKey, attrs)

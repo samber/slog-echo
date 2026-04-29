@@ -8,75 +8,75 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-type Filter func(ctx echo.Context) bool
+type Filter func(ctx *echo.Context, err error) bool
 
 // Basic
 func Accept(filter Filter) Filter { return filter }
-func Ignore(filter Filter) Filter { return func(ctx echo.Context) bool { return !filter(ctx) } }
+func Ignore(filter Filter) Filter {
+	return func(ctx *echo.Context, err error) bool { return !filter(ctx, err) }
+}
 
 // Method
 func AcceptMethod(methods ...string) Filter {
-	return func(c echo.Context) bool {
-		reqMethod := strings.ToLower(c.Request().Method)
+	for i := range methods {
+		methods[i] = strings.ToLower(methods[i])
+	}
 
-		for _, method := range methods {
-			if strings.ToLower(method) == reqMethod {
-				return true
-			}
-		}
-
-		return false
+	return func(c *echo.Context, err error) bool {
+		return slices.Contains(methods, strings.ToLower(c.Request().Method))
 	}
 }
 
 func IgnoreMethod(methods ...string) Filter {
-	return func(c echo.Context) bool {
-		reqMethod := strings.ToLower(c.Request().Method)
+	for i := range methods {
+		methods[i] = strings.ToLower(methods[i])
+	}
 
-		for _, method := range methods {
-			if strings.ToLower(method) == reqMethod {
-				return false
-			}
-		}
-
-		return true
+	return func(c *echo.Context, err error) bool {
+		return !slices.Contains(methods, strings.ToLower(c.Request().Method))
 	}
 }
 
 // Status
 func AcceptStatus(statuses ...int) Filter {
-	return func(c echo.Context) bool {
-		return slices.Contains(statuses, c.Response().Status)
+	return func(c *echo.Context, err error) bool {
+		_, gotStatus := echo.ResolveResponseStatus(c.Response(), err)
+		return slices.Contains(statuses, gotStatus)
 	}
 }
 
 func IgnoreStatus(statuses ...int) Filter {
-	return func(c echo.Context) bool {
-		return !slices.Contains(statuses, c.Response().Status)
+	return func(c *echo.Context, err error) bool {
+		_, gotStatus := echo.ResolveResponseStatus(c.Response(), err)
+		return !slices.Contains(statuses, gotStatus)
 	}
 }
 
 func AcceptStatusGreaterThan(status int) Filter {
-	return func(c echo.Context) bool {
-		return c.Response().Status > status
+	return func(c *echo.Context, err error) bool {
+		_, gotStatus := echo.ResolveResponseStatus(c.Response(), err)
+		return gotStatus > status
 	}
 }
 
 func AcceptStatusGreaterThanOrEqual(status int) Filter {
-	return func(c echo.Context) bool {
-		return c.Response().Status >= status
+	return func(c *echo.Context, err error) bool {
+		_, gotStatus := echo.ResolveResponseStatus(c.Response(), err)
+		return gotStatus >= status
 	}
 }
 
 func AcceptStatusLessThan(status int) Filter {
-	return func(c echo.Context) bool {
-		return c.Response().Status < status
+	return func(c *echo.Context, err error) bool {
+		_, gotStatus := echo.ResolveResponseStatus(c.Response(), err)
+		return gotStatus < status
 	}
 }
 
 func AcceptStatusLessThanOrEqual(status int) Filter {
-	return func(c echo.Context) bool {
-		return c.Response().Status <= status
+	return func(c *echo.Context, err error) bool {
+		_, gotStatus := echo.ResolveResponseStatus(c.Response(), err)
+		return gotStatus <= status
 	}
 }
 
@@ -98,21 +98,22 @@ func IgnoreStatusLessThanOrEqual(status int) Filter {
 
 // Path
 func AcceptPath(urls ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
 		return slices.Contains(urls, c.Request().URL.Path)
 	}
 }
 
 func IgnorePath(urls ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
 		return !slices.Contains(urls, c.Request().URL.Path)
 	}
 }
 
 func AcceptPathContains(parts ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		path := c.Request().URL.Path
 		for _, part := range parts {
-			if strings.Contains(c.Request().URL.Path, part) {
+			if strings.Contains(path, part) {
 				return true
 			}
 		}
@@ -122,9 +123,10 @@ func AcceptPathContains(parts ...string) Filter {
 }
 
 func IgnorePathContains(parts ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		path := c.Request().URL.Path
 		for _, part := range parts {
-			if strings.Contains(c.Request().URL.Path, part) {
+			if strings.Contains(path, part) {
 				return false
 			}
 		}
@@ -134,9 +136,10 @@ func IgnorePathContains(parts ...string) Filter {
 }
 
 func AcceptPathPrefix(prefixs ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		path := c.Request().URL.Path
 		for _, prefix := range prefixs {
-			if strings.HasPrefix(c.Request().URL.Path, prefix) {
+			if strings.HasPrefix(path, prefix) {
 				return true
 			}
 		}
@@ -146,9 +149,10 @@ func AcceptPathPrefix(prefixs ...string) Filter {
 }
 
 func IgnorePathPrefix(prefixs ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		path := c.Request().URL.Path
 		for _, prefix := range prefixs {
-			if strings.HasPrefix(c.Request().URL.Path, prefix) {
+			if strings.HasPrefix(path, prefix) {
 				return false
 			}
 		}
@@ -157,10 +161,11 @@ func IgnorePathPrefix(prefixs ...string) Filter {
 	}
 }
 
-func AcceptPathSuffix(prefixs ...string) Filter {
-	return func(c echo.Context) bool {
-		for _, prefix := range prefixs {
-			if strings.HasPrefix(c.Request().URL.Path, prefix) {
+func AcceptPathSuffix(suffixs ...string) Filter {
+	return func(c *echo.Context, err error) bool {
+		path := c.Request().URL.Path
+		for _, suffix := range suffixs {
+			if strings.HasSuffix(path, suffix) {
 				return true
 			}
 		}
@@ -170,9 +175,10 @@ func AcceptPathSuffix(prefixs ...string) Filter {
 }
 
 func IgnorePathSuffix(suffixs ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		path := c.Request().URL.Path
 		for _, suffix := range suffixs {
-			if strings.HasSuffix(c.Request().URL.Path, suffix) {
+			if strings.HasSuffix(path, suffix) {
 				return false
 			}
 		}
@@ -182,9 +188,10 @@ func IgnorePathSuffix(suffixs ...string) Filter {
 }
 
 func AcceptPathMatch(regs ...regexp.Regexp) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		path := c.Request().URL.Path
 		for _, reg := range regs {
-			if reg.Match([]byte(c.Request().URL.Path)) {
+			if reg.MatchString(path) {
 				return true
 			}
 		}
@@ -194,9 +201,10 @@ func AcceptPathMatch(regs ...regexp.Regexp) Filter {
 }
 
 func IgnorePathMatch(regs ...regexp.Regexp) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		path := c.Request().URL.Path
 		for _, reg := range regs {
-			if reg.Match([]byte(c.Request().URL.Path)) {
+			if reg.MatchString(path) {
 				return false
 			}
 		}
@@ -207,21 +215,22 @@ func IgnorePathMatch(regs ...regexp.Regexp) Filter {
 
 // Host
 func AcceptHost(hosts ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
 		return slices.Contains(hosts, c.Request().URL.Host)
 	}
 }
 
 func IgnoreHost(hosts ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
 		return !slices.Contains(hosts, c.Request().URL.Host)
 	}
 }
 
 func AcceptHostContains(parts ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		host := c.Request().URL.Host
 		for _, part := range parts {
-			if strings.Contains(c.Request().URL.Host, part) {
+			if strings.Contains(host, part) {
 				return true
 			}
 		}
@@ -231,9 +240,10 @@ func AcceptHostContains(parts ...string) Filter {
 }
 
 func IgnoreHostContains(parts ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		host := c.Request().URL.Host
 		for _, part := range parts {
-			if strings.Contains(c.Request().URL.Host, part) {
+			if strings.Contains(host, part) {
 				return false
 			}
 		}
@@ -243,9 +253,10 @@ func IgnoreHostContains(parts ...string) Filter {
 }
 
 func AcceptHostPrefix(prefixs ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		host := c.Request().URL.Host
 		for _, prefix := range prefixs {
-			if strings.HasPrefix(c.Request().URL.Host, prefix) {
+			if strings.HasPrefix(host, prefix) {
 				return true
 			}
 		}
@@ -255,9 +266,10 @@ func AcceptHostPrefix(prefixs ...string) Filter {
 }
 
 func IgnoreHostPrefix(prefixs ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		host := c.Request().URL.Host
 		for _, prefix := range prefixs {
-			if strings.HasPrefix(c.Request().URL.Host, prefix) {
+			if strings.HasPrefix(host, prefix) {
 				return false
 			}
 		}
@@ -266,10 +278,11 @@ func IgnoreHostPrefix(prefixs ...string) Filter {
 	}
 }
 
-func AcceptHostSuffix(prefixs ...string) Filter {
-	return func(c echo.Context) bool {
-		for _, prefix := range prefixs {
-			if strings.HasPrefix(c.Request().URL.Host, prefix) {
+func AcceptHostSuffix(suffixs ...string) Filter {
+	return func(c *echo.Context, err error) bool {
+		host := c.Request().URL.Host
+		for _, suffix := range suffixs {
+			if strings.HasSuffix(host, suffix) {
 				return true
 			}
 		}
@@ -279,9 +292,10 @@ func AcceptHostSuffix(prefixs ...string) Filter {
 }
 
 func IgnoreHostSuffix(suffixs ...string) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		host := c.Request().URL.Host
 		for _, suffix := range suffixs {
-			if strings.HasSuffix(c.Request().URL.Host, suffix) {
+			if strings.HasSuffix(host, suffix) {
 				return false
 			}
 		}
@@ -291,9 +305,10 @@ func IgnoreHostSuffix(suffixs ...string) Filter {
 }
 
 func AcceptHostMatch(regs ...regexp.Regexp) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		host := c.Request().URL.Host
 		for _, reg := range regs {
-			if reg.Match([]byte(c.Request().URL.Host)) {
+			if reg.MatchString(host) {
 				return true
 			}
 		}
@@ -303,9 +318,10 @@ func AcceptHostMatch(regs ...regexp.Regexp) Filter {
 }
 
 func IgnoreHostMatch(regs ...regexp.Regexp) Filter {
-	return func(c echo.Context) bool {
+	return func(c *echo.Context, err error) bool {
+		host := c.Request().URL.Host
 		for _, reg := range regs {
-			if reg.Match([]byte(c.Request().URL.Host)) {
+			if reg.MatchString(host) {
 				return false
 			}
 		}

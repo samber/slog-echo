@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -40,27 +41,27 @@ func main() {
 	e.Use(middleware.Recover())
 
 	// Routes
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
-	e.GET("/foobar/:id", func(c echo.Context) error {
+	e.GET("/foobar/:id", func(c *echo.Context) error {
 		slogecho.AddCustomAttributes(c, slog.String("foo", "bar"))
 		return c.String(http.StatusOK, "Hello, World!")
 	})
-	e.GET("/error1", func(c echo.Context) error {
+	e.GET("/error1", func(c *echo.Context) error {
 		return echo.
 			NewHTTPError(http.StatusInternalServerError, "A simulated error").
-			WithInternal(errors.New("A simulated internal error"))
+			Wrap(errors.New("A simulated internal error"))
 	})
-	e.GET("/error2", func(c echo.Context) error {
+	e.GET("/error2", func(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "A simulated error")
 	})
-	e.GET("/error3", func(c echo.Context) error {
+	e.GET("/error3", func(c *echo.Context) error {
 		return errors.New("A simulated error")
 	})
 
 	// Start server
-	e.Logger.Error(e.Start(":4242"))
+	log.Fatal(e.Start(":4242"))
 
 	// output:
 	// time=2023-04-10T14:00:00Z level=INFO msg="Success" env=production http.status=200 http.method=GET http.path=/ http.ip=::1 http.latency=25.958µs http.user-agent=curl/7.77.0 http.time=2023-04-10T14:00:00Z http.request-id=229c7fc8-64f5-4467-bc4a-940700503b0d

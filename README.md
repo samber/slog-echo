@@ -2,7 +2,7 @@
 # slog: Echo middleware
 
 [![tag](https://img.shields.io/github/tag/samber/slog-echo.svg)](https://github.com/samber/slog-echo/releases)
-![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.21-%23007d9c)
+![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.25-%23007d9c)
 [![GoDoc](https://godoc.org/github.com/samber/slog-echo?status.svg)](https://pkg.go.dev/github.com/samber/slog-echo)
 ![Build Status](https://github.com/samber/slog-echo/actions/workflows/test.yml/badge.svg)
 [![Go report](https://goreportcard.com/badge/github.com/samber/slog-echo)](https://goreportcard.com/report/github.com/samber/slog-echo)
@@ -89,7 +89,7 @@ go get github.com/samber/slog-echo
 go get github.com/samber/slog-echo@echo-v4
 ```
 
-**Compatibility**: go >= 1.21
+**Compatibility**: go >= 1.25
 
 No breaking changes will be made to exported APIs before v2.0.0.
 

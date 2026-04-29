@@ -82,11 +82,11 @@
 ## 🚀 Install
 
 ```sh
-# echo v4 (current)
+# echo v5 (current)
 go get github.com/samber/slog-echo
 
-# echo v5 (alpha)
-go get github.com/samber/slog-echo@echo-v5
+# echo v4 (legacy)
+go get github.com/samber/slog-echo@echo-v4
 ```
 
 **Compatibility**: go >= 1.21

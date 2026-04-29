@@ -2,7 +2,7 @@
 # slog: Echo middleware
 
 [![tag](https://img.shields.io/github/tag/samber/slog-echo.svg)](https://github.com/samber/slog-echo/releases)
-![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.21-%23007d9c)
+![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.25-%23007d9c)
 [![GoDoc](https://godoc.org/github.com/samber/slog-echo?status.svg)](https://pkg.go.dev/github.com/samber/slog-echo)
 ![Build Status](https://github.com/samber/slog-echo/actions/workflows/test.yml/badge.svg)
 [![Go report](https://goreportcard.com/badge/github.com/samber/slog-echo)](https://goreportcard.com/report/github.com/samber/slog-echo)
@@ -82,14 +82,14 @@
 ## 🚀 Install
 
 ```sh
-# echo v4 (current)
+# echo v5 (current)
 go get github.com/samber/slog-echo
 
-# echo v5 (alpha)
-go get github.com/samber/slog-echo@echo-v5
+# echo v4 (legacy)
+go get github.com/samber/slog-echo@echo-v4
 ```
 
-**Compatibility**: go >= 1.21
+**Compatibility**: go >= 1.25
 
 No breaking changes will be made to exported APIs before v2.0.0.
 
@@ -112,7 +112,7 @@ type Config struct {
 	WithSpanID         bool
 	WithTraceID        bool
 	WithClientIP       bool
-	WithCustomMessage  func(c echo.Context, err error) string
+	WithCustomMessage  func(c *echo.Context, err error) string
 
 	Filters []Filter
 }
@@ -135,12 +135,12 @@ slogecho.HiddenResponseHeaders = map[string]struct{}{ ... }
 
 ```go
 import (
+	"log"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	slogecho "github.com/samber/slog-echo"
 	"log/slog"
 )
@@ -157,17 +157,17 @@ e.Use(slogecho.New(logger))
 e.Use(middleware.Recover())
 
 // Routes
-e.GET("/", func(c echo.Context) error {
+e.GET("/", func(c *echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
-e.GET("/error", func(c echo.Context) error {
+e.GET("/error", func(c *echo.Context) error {
 	return echo.
 		NewHTTPError(http.StatusInternalServerError, "I'm angry").
-		WithInternal(errors.New("I'm angry internally"))
+		Wrap(errors.New("I'm angry internally"))
 })
 
 // Start server
-e.Logger.Fatal(e.Start(":4242"))
+log.Fatal(e.Start(":4242"))
 
 // output:
 // time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58.626+02:00 request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58.926+02:00 response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d  http.error="map[code:500 internal:I'm angry internally message:I'm angry]" http.internal="I'm angry internally"
@@ -230,7 +230,7 @@ e := echo.New()
 e.Use(
 	slogecho.NewWithFilters(
 		logger,
-		slogecho.Accept(func (c echo.Context) bool {
+		slogecho.Accept(func(c *echo.Context, err error) bool {
 			return xxx
 		}),
 		slogecho.IgnoreStatus(401, 404),
@@ -239,23 +239,23 @@ e.Use(
 e.Use(middleware.Recover())
 ```
 
-Available filters:
-
-### Filters
+Custom filters can inspect the error returned by the handler:
 
 ```go
 logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-router := gin.New()
-router.Use(
-	sloggin.NewWithFilters(
-		logger,
-		sloggin.Accept(func (c *gin.Context) bool {
-			return xxx
-		}),
-		sloggin.IgnoreStatus(401, 404),
-	),
+e := echo.New()
+e.Use(
+	slogecho.NewWithConfig(logger, slogecho.Config{
+		Filters: []slogecho.Filter{
+			slogecho.Accept(func(c *echo.Context, err error) bool {
+				return err != nil
+			}),
+			slogecho.IgnoreStatus(401, 404),
+		},
+	}),
 )
+e.Use(middleware.Recover())
 ```
 
 Available filters:
@@ -281,8 +281,9 @@ Available filters:
 
 ```go
 import (
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"log"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	slogecho "github.com/samber/slog-echo"
 	slogformatter "github.com/samber/slog-formatter"
 	"log/slog"
@@ -308,17 +309,17 @@ e.Use(slogecho.New(logger))
 e.Use(middleware.Recover())
 
 // Routes
-e.GET("/", func(c echo.Context) error {
+e.GET("/", func(c *echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
-e.GET("/error", func(c echo.Context) error {
+e.GET("/error", func(c *echo.Context) error {
 	return echo.
 		NewHTTPError(http.StatusInternalServerError, "I'm angry").
-		WithInternal(errors.New("I'm angry internally"))
+		Wrap(errors.New("I'm angry internally"))
 })
 
 // Start server
-e.Logger.Fatal(e.Start(":4242"))
+log.Fatal(e.Start(":4242"))
 
 // output:
 // time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58Z request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58Z response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d error="map[code:500 internal:I'm angry internally message:I'm angry]" internal="I'm angry internally"
@@ -337,17 +338,17 @@ e.Use(slogecho.New(logger.WithGroup("http")))
 e.Use(middleware.Recover())
 
 // Routes
-e.GET("/", func(c echo.Context) error {
+e.GET("/", func(c *echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
-e.GET("/error", func(c echo.Context) error {
+e.GET("/error", func(c *echo.Context) error {
 	return echo.
 		NewHTTPError(http.StatusInternalServerError, "I'm angry").
-		WithInternal(errors.New("I'm angry internally"))
+		Wrap(errors.New("I'm angry internally"))
 })
 
 // Start server
-e.Logger.Fatal(e.Start(":4242"))
+log.Fatal(e.Start(":4242"))
 
 // output:
 // time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production http.request.time=2023-10-15T20:32:58.626+02:00 http.request.method=GET http.request.path=/ http.request.route="" http.request.ip=127.0.0.1:63932 http.request.length=0 http.response.time=2023-10-15T20:32:58.926+02:00 http.response.latency=100ms http.response.status=200 http.response.length=7 http.id=229c7fc8-64f5-4467-bc4a-940700503b0d http.error="map[code:500 internal:I'm angry internally message:I'm angry]" http.internal="I'm angry internally"
@@ -365,12 +366,12 @@ e := echo.New()
 e.Use(middleware.Recover())
 
 // Routes
-e.GET("/", func(c echo.Context) error {
+e.GET("/", func(c *echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 }, slogecho.New(logger))
 
 // Start server
-e.Logger.Fatal(e.Start(":4242"))
+log.Fatal(e.Start(":4242"))
 ```
 
 ### Adding custom attributes
@@ -389,14 +390,14 @@ e.Use(slogecho.New(logger))
 e.Use(middleware.Recover())
 
 // Routes
-e.GET("/", func(c echo.Context) error {
+e.GET("/", func(c *echo.Context) error {
 	// Add an attribute to a single log entry.
 	slogecho.AddCustomAttributes(c, slog.String("foo", "bar"))
 	return c.String(http.StatusOK, "Hello, World!")
 })
 
 // Start server
-e.Logger.Fatal(e.Start(":4242"))
+log.Fatal(e.Start(":4242"))
 
 // output:
 // time=2023-10-15T20:32:58.926+02:00 level=INFO msg="Success" env=production request.time=2023-10-15T20:32:58.626+02:00 request.method=GET request.path=/ request.route="" request.ip=127.0.0.1:63932 request.length=0 response.time=2023-10-15T20:32:58.926+02:00 response.latency=100ms response.status=200 response.length=7 id=229c7fc8-64f5-4467-bc4a-940700503b0d foo=bar error="map[code:500 internal:I'm angry internally message:I'm angry]" internal="I'm angry internally"
@@ -415,12 +416,12 @@ e.Use(slogecho.New(logger))
 e.Use(middleware.Recover())
 
 // Routes
-e.GET("/", func(c echo.Context) error {
+e.GET("/", func(c *echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 })
 
 // Start server
-e.Logger.Fatal(e.Start(":4242"))
+log.Fatal(e.Start(":4242"))
 
 // output:
 // {"time":"2023-10-15T20:32:58.926+02:00","level":"INFO","msg":"Success","env":"production","http":{"request":{"time":"2023-10-15T20:32:58.626+02:00","method":"GET","path":"/","route":"","ip":"127.0.0.1:55296","length":0},"response":{"time":"2023-10-15T20:32:58.926+02:00","latency":100000,"status":200,"length":7},"id":"04201917-d7ba-4b20-a3bb-2fffba5f2bd9"}, "error": {"code":500, "internal":"I'm angry internally", "message":"I'm angry"}, "internal": "I'm angry internally"}

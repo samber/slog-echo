@@ -86,7 +86,7 @@
 go get github.com/samber/slog-echo/v2
 
 # echo v4 (legacy)
-go get github.com/samber/slog-echo@v1
+go get github.com/samber/slog-echo
 ```
 
 **Compatibility**: go >= 1.25

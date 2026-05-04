@@ -2,7 +2,7 @@ module example
 
 go 1.25.0
 
-replace github.com/samber/slog-echo => ../
+replace github.com/samber/slog-echo/v2 => ../
 
 require (
 	github.com/labstack/echo/v5 v5.1.0

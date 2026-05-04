@@ -83,15 +83,15 @@
 
 ```sh
 # echo v5 (current)
-go get github.com/samber/slog-echo
+go get github.com/samber/slog-echo/v2
 
 # echo v4 (legacy)
-go get github.com/samber/slog-echo@echo-v4
+go get github.com/samber/slog-echo@v1
 ```
 
 **Compatibility**: go >= 1.25
 
-No breaking changes will be made to exported APIs before v2.0.0.
+No breaking changes will be made to exported APIs before v3.0.0.
 
 ## 💡 Usage
 

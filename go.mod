@@ -1,4 +1,4 @@
-module github.com/samber/slog-echo
+module github.com/samber/slog-echo/v2
 
 go 1.25.0
 

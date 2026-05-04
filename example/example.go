@@ -11,7 +11,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
-	slogecho "github.com/samber/slog-echo"
+	slogecho "github.com/samber/slog-echo/v2"
 	slogformatter "github.com/samber/slog-formatter"
 )
 

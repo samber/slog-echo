@@ -6,7 +6,7 @@ replace github.com/samber/slog-echo/v2 => ../
 
 require (
 	github.com/labstack/echo/v5 v5.1.0
-	github.com/samber/slog-echo v1.0.0
+	github.com/samber/slog-echo/v2 v2.0.0-00010101000000-000000000000
 	github.com/samber/slog-formatter v1.0.0
 )
 

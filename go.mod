@@ -3,7 +3,7 @@ module github.com/samber/slog-echo/v2
 go 1.25.0
 
 require (
-	github.com/labstack/echo/v5 v5.1.1
+	github.com/labstack/echo/v5 v5.2.1
 	github.com/samber/lo v1.53.0
 	go.opentelemetry.io/otel/trace v1.44.0
 )

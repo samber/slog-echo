@@ -66,6 +66,15 @@ func (w *bodyWriter) ReadFrom(r io.Reader) (int64, error) {
 	return io.Copy(struct{ io.Writer }{w}, r)
 }
 
+// Unwrap exposes the wrapped ResponseWriter so http.ResponseController (used by
+// e.g. tusd to refresh read/write deadlines on chunked uploads) can reach the
+// underlying writer's control APIs instead of failing with "feature not
+// supported". Without this, embedding http.ResponseWriter as an interface only
+// promotes Header/Write/WriteHeader, not SetReadDeadline/SetWriteDeadline.
+func (w *bodyWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func newBodyWriter(writer http.ResponseWriter, maxSize int, recordBody bool) *bodyWriter {
 	var body *bytes.Buffer
 	if recordBody {

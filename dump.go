@@ -45,6 +45,16 @@ func (w *bodyWriter) Flush() {
 	}
 }
 
+// Unwrap returns the underlying http.ResponseWriter, following the convention
+// http.ResponseController and echo.UnwrapResponse use to reach through
+// middleware wrappers. Without it, echo.ResolveResponseStatus stops at this
+// wrapper and logs every successful response as 200 whatever status the
+// handler wrote, and per-request deadline changes cannot reach the underlying
+// connection.
+func (w *bodyWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 // implements http.Hijacker
 func (w *bodyWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hi, ok := w.ResponseWriter.(http.Hijacker); ok {

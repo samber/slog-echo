@@ -121,12 +121,6 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			err = next(c)
 
-			if err != nil {
-				if _, ok := err.(*echo.HTTPError); !ok {
-					err = echo.NewHTTPError(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError)).Wrap(err)
-				}
-			}
-
 			// Pass thru filters and skip early the code below, to prevent unnecessary processing.
 			for _, filter := range config.Filters {
 				if !filter(c, err) {
@@ -147,8 +141,12 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			errMsg := ""
 
 			var httpErr *echo.HTTPError
-			if err != nil && errors.As(err, &httpErr) {
-				errMsg = httpErr.Message
+			if err != nil {
+				if errors.As(err, &httpErr) {
+					errMsg = httpErr.Message
+				} else {
+					errMsg = err.Error()
+				}
 			}
 
 			baseAttributes := make([]slog.Attr, 0, 3)

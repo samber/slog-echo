@@ -128,23 +128,28 @@ func TestMiddlewareForwardsPlainHandlerErrorUnchanged(t *testing.T) {
 
 // config.Filters used to receive the wrapped 500 *echo.HTTPError for any non-HTTPError
 // handler error, never the handler's own error. It must now see the same error the handler
-// returned.
+// returned, at its real resolved status. This matters beyond identity: filters.go's
+// AcceptStatus/IgnoreStatus family call echo.ResolveResponseStatus(c.Response(), err) on the
+// exact error a Filter receives, so as long as the filter loop saw the forced-500 wrapper,
+// AcceptStatus(404) (for example) could never match a real 404 handler error.
 func TestMiddlewareFilterReceivesOriginalError(t *testing.T) {
 	e := echo.New()
-	wantErr := errors.New("boom")
+	wantErr := httpStatusCoderError{code: http.StatusTooManyRequests, msg: "please slow down"}
 
 	var gotErr error
+	var gotStatus int
 	config := DefaultConfig()
 	config.Filters = []Filter{
 		func(c *echo.Context, err error) bool {
 			gotErr = err
+			_, gotStatus = echo.ResolveResponseStatus(c.Response(), err)
 			return true // don't skip logging
 		},
 	}
 	e.Use(NewWithConfig(slog.New(slog.NewTextHandler(io.Discard, nil)), config))
-	e.GET("/boom", func(c *echo.Context) error { return wantErr })
+	e.GET("/limited", func(c *echo.Context) error { return wantErr })
 
-	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
+	req := httptest.NewRequest(http.MethodGet, "/limited", nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -153,7 +158,34 @@ func TestMiddlewareFilterReceivesOriginalError(t *testing.T) {
 	}
 	var httpErr *echo.HTTPError
 	if errors.As(gotErr, &httpErr) {
-		t.Fatalf("Filter received a wrapped *echo.HTTPError (code %d), want the original plain error", httpErr.Code)
+		t.Fatalf("Filter received a wrapped *echo.HTTPError (code %d), want the original error", httpErr.Code)
+	}
+	if gotStatus != http.StatusTooManyRequests {
+		t.Fatalf("status resolved inside the Filter = %d, want %d (the forced-500 wrapper would have hidden this)", gotStatus, http.StatusTooManyRequests)
+	}
+}
+
+// The built-in IgnoreStatus filter is the real-world consumer of the bug in the test above:
+// it resolves its own status from the exact error the middleware passes to config.Filters. If
+// that error were still forced to 500 (the pre-fix behavior), IgnoreStatus(404) could never
+// tell a real 404 apart from any other handler error, and would drop every request's log.
+func TestMiddlewareIgnoreStatusFilterMatchesRouterNotFound(t *testing.T) {
+	var logBuf bytes.Buffer
+	e := echo.New()
+	config := DefaultConfig()
+	config.Filters = []Filter{IgnoreStatus(http.StatusNotFound)}
+	e.Use(NewWithConfig(slog.New(slog.NewJSONHandler(&logBuf, nil)), config))
+	e.GET("/exists", func(c *echo.Context) error { return c.String(http.StatusOK, "ok") })
+
+	req := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusNotFound, rec.Body.String())
+	}
+	if logBuf.Len() != 0 {
+		t.Fatalf("IgnoreStatus(404) should have dropped the log line, got: %s", logBuf.String())
 	}
 }
 

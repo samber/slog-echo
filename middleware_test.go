@@ -125,3 +125,102 @@ func TestMiddlewareForwardsPlainHandlerErrorUnchanged(t *testing.T) {
 		t.Fatalf("log response.status = %v, want %d", response["status"], http.StatusInternalServerError)
 	}
 }
+
+// config.Filters used to receive the wrapped 500 *echo.HTTPError for any non-HTTPError
+// handler error, never the handler's own error. It must now see the same error the handler
+// returned.
+func TestMiddlewareFilterReceivesOriginalError(t *testing.T) {
+	e := echo.New()
+	wantErr := errors.New("boom")
+
+	var gotErr error
+	config := DefaultConfig()
+	config.Filters = []Filter{
+		func(c *echo.Context, err error) bool {
+			gotErr = err
+			return true // don't skip logging
+		},
+	}
+	e.Use(NewWithConfig(slog.New(slog.NewTextHandler(io.Discard, nil)), config))
+	e.GET("/boom", func(c *echo.Context) error { return wantErr })
+
+	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if !errors.Is(gotErr, wantErr) {
+		t.Fatalf("Filter received %v, want the original error %v unchanged", gotErr, wantErr)
+	}
+	var httpErr *echo.HTTPError
+	if errors.As(gotErr, &httpErr) {
+		t.Fatalf("Filter received a wrapped *echo.HTTPError (code %d), want the original plain error", httpErr.Code)
+	}
+}
+
+// config.WithCustomMessage used to receive the wrapped 500 *echo.HTTPError for any
+// non-HTTPError handler error, never the handler's own error. It must now see the same error
+// the handler returned.
+func TestMiddlewareCustomMessageReceivesOriginalError(t *testing.T) {
+	e := echo.New()
+	wantErr := errors.New("boom")
+
+	var gotErr error
+	config := DefaultConfig()
+	config.WithCustomMessage = func(c *echo.Context, err error) string {
+		gotErr = err
+		return "custom message"
+	}
+	e.Use(NewWithConfig(slog.New(slog.NewTextHandler(io.Discard, nil)), config))
+	e.GET("/boom", func(c *echo.Context) error { return wantErr })
+
+	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if !errors.Is(gotErr, wantErr) {
+		t.Fatalf("WithCustomMessage received %v, want the original error %v unchanged", gotErr, wantErr)
+	}
+	var httpErr *echo.HTTPError
+	if errors.As(gotErr, &httpErr) {
+		t.Fatalf("WithCustomMessage received a wrapped *echo.HTTPError (code %d), want the original plain error", httpErr.Code)
+	}
+}
+
+// The structured "error" log attribute (code/message/internal) is only built from an actual
+// *echo.HTTPError. Before this fix every non-nil handler error was forced into one, so the
+// attribute always appeared, with a misleading code (always 500, even for a real 404/405).
+// Now it only appears for a genuine *echo.HTTPError; other status-carrying or plain errors
+// rely on the top-level msg and response.status fields instead.
+func TestMiddlewareStructuredErrorAttributeOnlyForHTTPError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		wantAttr bool
+	}{
+		{"real HTTPError", echo.NewHTTPError(http.StatusBadRequest, "bad input"), true},
+		{"custom HTTPStatusCoder", httpStatusCoderError{code: http.StatusTooManyRequests, msg: "please slow down"}, false},
+		{"plain error", errors.New("boom"), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logBuf bytes.Buffer
+			e := echo.New()
+			e.Use(New(slog.New(slog.NewJSONHandler(&logBuf, nil))))
+			e.GET("/x", func(c *echo.Context) error { return tt.err })
+
+			req := httptest.NewRequest(http.MethodGet, "/x", nil)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+
+			var logLine map[string]any
+			if err := json.Unmarshal(bytes.TrimSpace(logBuf.Bytes()), &logLine); err != nil {
+				t.Fatalf("failed to parse log line: %v (line: %s)", err, logBuf.String())
+			}
+			_, hasErrorAttr := logLine["error"]
+			if hasErrorAttr != tt.wantAttr {
+				t.Fatalf("structured \"error\" log attribute present = %v, want %v (log: %s)", hasErrorAttr, tt.wantAttr, logBuf.String())
+			}
+		})
+	}
+}

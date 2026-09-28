@@ -50,6 +50,49 @@ func TestMiddlewarePreservesRouterStatusCodes(t *testing.T) {
 	}
 }
 
+// httpStatusCoderError is a minimal echo.HTTPStatusCoder, standing in for any error type
+// (not just Echo's own router sentinels) that carries its status this way instead of being
+// an *echo.HTTPError.
+type httpStatusCoderError struct {
+	code int
+	msg  string
+}
+
+func (e httpStatusCoderError) Error() string   { return e.msg }
+func (e httpStatusCoderError) StatusCode() int { return e.code }
+
+// A custom error type implementing echo.HTTPStatusCoder (not *echo.HTTPError) must keep its
+// own status code instead of being downgraded to 500, the same guarantee the router sentinels
+// above rely on.
+func TestMiddlewarePreservesCustomHTTPStatusCoderError(t *testing.T) {
+	var logBuf bytes.Buffer
+	e := echo.New()
+	e.Use(New(slog.New(slog.NewJSONHandler(&logBuf, nil))))
+
+	wantErr := httpStatusCoderError{code: http.StatusTooManyRequests, msg: "please slow down"}
+	e.GET("/limited", func(c *echo.Context) error { return wantErr })
+
+	req := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusTooManyRequests, rec.Body.String())
+	}
+
+	var logLine map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(logBuf.Bytes()), &logLine); err != nil {
+		t.Fatalf("failed to parse log line: %v (line: %s)", err, logBuf.String())
+	}
+	if msg, _ := logLine["msg"].(string); msg != wantErr.Error() {
+		t.Fatalf("log msg = %q, want %q", msg, wantErr.Error())
+	}
+	response, _ := logLine["response"].(map[string]any)
+	if status, _ := response["status"].(float64); int(status) != http.StatusTooManyRequests {
+		t.Fatalf("log response.status = %v, want %d", response["status"], http.StatusTooManyRequests)
+	}
+}
+
 // A plain error returned by a handler (one that is neither *echo.HTTPError nor an
 // echo.HTTPStatusCoder) used to be wrapped into a fresh 500 *echo.HTTPError, and that wrapped
 // error was what the middleware returned too, replacing the handler's own error with a fixed

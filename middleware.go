@@ -3,6 +3,7 @@ package slogecho
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -121,12 +122,6 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			err = next(c)
 
-			if err != nil {
-				if _, ok := err.(*echo.HTTPError); !ok {
-					err = echo.NewHTTPError(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError)).Wrap(err)
-				}
-			}
-
 			// Pass thru filters and skip early the code below, to prevent unnecessary processing.
 			for _, filter := range config.Filters {
 				if !filter(c, err) {
@@ -146,9 +141,15 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			errMsg := ""
 
+			// errors.As walks the whole error tree (%w chains and errors.Join), so an
+			// *echo.HTTPError nested in another error is found, like Echo's own error handler does.
 			var httpErr *echo.HTTPError
-			if err != nil && errors.As(err, &httpErr) {
-				errMsg = httpErr.Message
+			if err != nil {
+				if errors.As(err, &httpErr) {
+					errMsg = httpErr.Message
+				} else {
+					errMsg = errorString(err)
+				}
 			}
 
 			baseAttributes := make([]slog.Attr, 0, 3)
@@ -284,19 +285,42 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				}
 			}
 
-			if httpErr != nil {
-				attributes = append(
-					attributes,
-					slog.Any("error", map[string]any{
-						"code":     httpErr.Code,
-						"message":  httpErr.Message,
-						"internal": httpErr.Unwrap(),
-					}),
-				)
-
-				if httpErr.Unwrap() != nil {
-					attributes = append(attributes, slog.String("internal", httpErr.Unwrap().Error()))
+			if err != nil {
+				// error.code describes the error itself, not the wire status: once the response
+				// is committed, status holds the committed code and ignores err.
+				errAttr := map[string]any{
+					"code":    http.StatusInternalServerError,
+					"message": errMsg,
 				}
+
+				// Only an *echo.HTTPError carries a wrapped cause distinct from its own message
+				// (via .Wrap). For any other error, the error itself is the internal cause.
+				var internal error
+				var sc echo.HTTPStatusCoder
+				if httpErr != nil {
+					errAttr["code"] = httpErr.Code
+					internal = httpErr.Unwrap()
+					// A nested *echo.HTTPError (fmt.Errorf("load user: %w", httpErr), errors.Join)
+					// only holds part of the error: keep the full error so the outer context is
+					// logged. Comparing interfaces cannot panic here: different dynamic types
+					// compare unequal, and *echo.HTTPError is a comparable pointer.
+					if err != error(httpErr) {
+						internal = err
+					}
+				} else if errors.As(err, &sc) && sc.StatusCode() != 0 {
+					errAttr["code"] = sc.StatusCode()
+					internal = err
+				} else {
+					internal = err
+				}
+
+				// Always set, even when nil, to keep a stable log schema.
+				errAttr["internal"] = internal
+				if internal != nil {
+					attributes = append(attributes, slog.String("internal", errorString(internal)))
+				}
+
+				attributes = append(attributes, slog.Any("error", errAttr))
 			}
 
 			if config.WithCustomMessage != nil {
@@ -322,6 +346,18 @@ func AddCustomAttributes(c *echo.Context, attrs ...slog.Attr) {
 	case []slog.Attr:
 		c.Set(customAttributesCtxKey, append(vAttrs, attrs...))
 	}
+}
+
+// errorString returns err.Error() without letting a panic escape the logging middleware: a
+// typed nil error (a nil *T stored in a non-nil error) panics when Error() dereferences its
+// receiver.
+func errorString(err error) (s string) {
+	defer func() {
+		if r := recover(); r != nil {
+			s = fmt.Sprintf("%T: Error() panicked: %v", err, r)
+		}
+	}()
+	return err.Error()
 }
 
 func extractTraceSpanID(ctx context.Context, withTraceID bool, withSpanID bool) []slog.Attr {

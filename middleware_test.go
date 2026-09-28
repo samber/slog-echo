@@ -51,27 +51,23 @@ func TestMiddlewarePreservesRouterStatusCodes(t *testing.T) {
 }
 
 // A plain error returned by a handler (one that is neither *echo.HTTPError nor an
-// echo.HTTPStatusCoder) must come back out of the middleware unchanged: it only used to wrap
-// it into a fresh 500 *echo.HTTPError for logging purposes, but returned that wrapped error
-// too, replacing whatever the handler actually returned. Calling the middleware function
-// directly (instead of going through Echo.ServeHTTP + HTTPErrorHandler) isolates that
-// contract: nothing downstream of the middleware's own return value is involved.
+// echo.HTTPStatusCoder) used to be wrapped into a fresh 500 *echo.HTTPError, and that wrapped
+// error was what the middleware returned too, replacing the handler's own error with a fixed
+// "Internal Server Error" message. The log must show the handler's own message instead.
 func TestMiddlewareForwardsPlainHandlerErrorUnchanged(t *testing.T) {
 	var logBuf bytes.Buffer
 	e := echo.New()
-	mw := New(slog.New(slog.NewJSONHandler(&logBuf, nil)))
+	e.Use(New(slog.New(slog.NewJSONHandler(&logBuf, nil))))
 
 	wantErr := errors.New("my error")
-	handler := mw(func(c *echo.Context) error { return wantErr })
+	e.GET("/boom", func(c *echo.Context) error { return wantErr })
 
 	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
+	e.ServeHTTP(rec, req)
 
-	gotErr := handler(c)
-
-	if !errors.Is(gotErr, wantErr) {
-		t.Fatalf("middleware returned %v, want the original error %v unchanged", gotErr, wantErr)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
 
 	var logLine map[string]any

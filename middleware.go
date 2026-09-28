@@ -283,18 +283,31 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 			}
 
 			if err != nil {
+				// error.code describes the error itself, not the wire status: once the response
+				// is committed, status holds the committed code and ignores err.
 				errAttr := map[string]any{
-					"code":    status,
+					"code":    http.StatusInternalServerError,
 					"message": errMsg,
 				}
 
-				// httpErr is nil unless err is an actual *echo.HTTPError: only that type can
-				// carry an explicitly wrapped cause (via .Wrap), distinct from its own message.
+				// Only an *echo.HTTPError carries a wrapped cause distinct from its own message
+				// (via .Wrap). For any other error, the error itself is the internal cause.
+				var internal error
+				var sc echo.HTTPStatusCoder
 				if httpErr != nil {
-					if internal := httpErr.Unwrap(); internal != nil {
-						errAttr["internal"] = internal
-						attributes = append(attributes, slog.String("internal", internal.Error()))
-					}
+					errAttr["code"] = httpErr.Code
+					internal = httpErr.Unwrap()
+				} else if errors.As(err, &sc) && sc.StatusCode() != 0 {
+					errAttr["code"] = sc.StatusCode()
+					internal = err
+				} else {
+					internal = err
+				}
+
+				// Always set, even when nil, to keep a stable log schema.
+				errAttr["internal"] = internal
+				if internal != nil {
+					attributes = append(attributes, slog.String("internal", internal.Error()))
 				}
 
 				attributes = append(attributes, slog.Any("error", errAttr))

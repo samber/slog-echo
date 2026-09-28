@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/labstack/echo/v5"
@@ -422,6 +423,103 @@ func errorKinds() []errorKind {
 			wantMsg:      "Not Found",
 			wantInternal: "Not Found",
 		},
+		{
+			// errors.As finds the inner *echo.HTTPError; the outer context ("load user: ")
+			// must still reach the log through internal.
+			name:         "HTTPError wrapped by fmt.Errorf",
+			err:          fmt.Errorf("load user: %w", echo.NewHTTPError(http.StatusForbidden, "forbidden")),
+			wantStatus:   http.StatusForbidden,
+			wantBody:     `{"message":"forbidden"}`,
+			wantLevel:    "WARN",
+			wantMsg:      "forbidden",
+			wantInternal: "load user: code=403, message=forbidden",
+		},
+		{
+			// A StatusCode() of 0 means "no status": echo.StatusCode and the middleware both
+			// fall back to 500.
+			name:         "HTTPStatusCoder with code 0",
+			err:          httpStatusCoderError{code: 0, msg: "zero"},
+			wantStatus:   http.StatusInternalServerError,
+			wantBody:     `{"message":"Internal Server Error"}`,
+			wantLevel:    "ERROR",
+			wantMsg:      "zero",
+			wantInternal: "zero",
+		},
+	}
+}
+
+// typedNilError has a pointer receiver that dereferences its receiver, so a nil
+// *typedNilError returned as an error panics when Error() is called.
+type typedNilError struct{ msg string }
+
+func (e *typedNilError) Error() string { return e.msg }
+
+// A handler that returns a typed nil (a nil *T stored in a non-nil error interface) has a
+// bug, but the logging middleware must not turn it into a panic: the request must still be
+// logged.
+func TestMiddlewareTypedNilErrorDoesNotPanic(t *testing.T) {
+	var logBuf bytes.Buffer
+	e := echo.New()
+	e.Use(New(slog.New(slog.NewJSONHandler(&logBuf, nil))))
+	e.GET("/x", func(c *echo.Context) error {
+		var err *typedNilError
+		return err
+	})
+
+	func() {
+		// Recover here, otherwise the panic would abort every remaining test in the binary.
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("middleware panicked on a typed nil error: %v", r)
+			}
+		}()
+		e.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+	}()
+
+	var logLine map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(logBuf.Bytes()), &logLine); err != nil {
+		t.Fatalf("request was not logged: %v (line: %s)", err, logBuf.String())
+	}
+	if msg, _ := logLine["msg"].(string); !strings.Contains(msg, "*slogecho.typedNilError") {
+		t.Fatalf("msg = %q, want it to name the faulty error type", msg)
+	}
+}
+
+// Without any returned error, the log level and message follow the written status, and no
+// error attributes are emitted.
+func TestMiddlewareNoErrorFollowsWrittenStatus(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    int
+		wantLevel string
+		wantMsg   string
+	}{
+		{"success", http.StatusOK, "INFO", "Incoming request"},
+		{"client error status", http.StatusNotFound, "WARN", "Not Found"},
+		{"server error status", http.StatusServiceUnavailable, "ERROR", "Service Unavailable"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logLine := serveAndDecodeLog(t, func(c *echo.Context) error { return c.NoContent(tt.status) })
+
+			if level, _ := logLine["level"].(string); level != tt.wantLevel {
+				t.Fatalf("level = %q, want %q", level, tt.wantLevel)
+			}
+			if msg, _ := logLine["msg"].(string); msg != tt.wantMsg {
+				t.Fatalf("msg = %q, want %q", msg, tt.wantMsg)
+			}
+			response, _ := logLine["response"].(map[string]any)
+			if status, _ := response["status"].(float64); int(status) != tt.status {
+				t.Fatalf("response.status = %v, want %d", response["status"], tt.status)
+			}
+			if _, ok := logLine["error"]; ok {
+				t.Fatalf("unexpected error attribute: %v", logLine["error"])
+			}
+			if _, ok := logLine["internal"]; ok {
+				t.Fatalf("unexpected internal attribute: %v", logLine["internal"])
+			}
+		})
 	}
 }
 

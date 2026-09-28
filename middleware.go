@@ -3,6 +3,7 @@ package slogecho
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -140,12 +141,14 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 
 			errMsg := ""
 
+			// errors.As walks the whole error tree (%w chains and errors.Join), so an
+			// *echo.HTTPError nested in another error is found, like Echo's own error handler does.
 			var httpErr *echo.HTTPError
 			if err != nil {
 				if errors.As(err, &httpErr) {
 					errMsg = httpErr.Message
 				} else {
-					errMsg = err.Error()
+					errMsg = errorString(err)
 				}
 			}
 
@@ -297,6 +300,13 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				if httpErr != nil {
 					errAttr["code"] = httpErr.Code
 					internal = httpErr.Unwrap()
+					// A nested *echo.HTTPError (fmt.Errorf("load user: %w", httpErr), errors.Join)
+					// only holds part of the error: keep the full error so the outer context is
+					// logged. Comparing interfaces cannot panic here: different dynamic types
+					// compare unequal, and *echo.HTTPError is a comparable pointer.
+					if err != error(httpErr) {
+						internal = err
+					}
 				} else if errors.As(err, &sc) && sc.StatusCode() != 0 {
 					errAttr["code"] = sc.StatusCode()
 					internal = err
@@ -307,7 +317,7 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				// Always set, even when nil, to keep a stable log schema.
 				errAttr["internal"] = internal
 				if internal != nil {
-					attributes = append(attributes, slog.String("internal", internal.Error()))
+					attributes = append(attributes, slog.String("internal", errorString(internal)))
 				}
 
 				attributes = append(attributes, slog.Any("error", errAttr))
@@ -336,6 +346,18 @@ func AddCustomAttributes(c *echo.Context, attrs ...slog.Attr) {
 	case []slog.Attr:
 		c.Set(customAttributesCtxKey, append(vAttrs, attrs...))
 	}
+}
+
+// errorString returns err.Error() without letting a panic escape the logging middleware: a
+// typed nil error (a nil *T stored in a non-nil error) panics when Error() dereferences its
+// receiver.
+func errorString(err error) (s string) {
+	defer func() {
+		if r := recover(); r != nil {
+			s = fmt.Sprintf("%T: Error() panicked: %v", err, r)
+		}
+	}()
+	return err.Error()
 }
 
 func extractTraceSpanID(ctx context.Context, withTraceID bool, withSpanID bool) []slog.Attr {

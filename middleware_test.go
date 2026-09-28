@@ -1,6 +1,8 @@
 package slogecho
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -45,5 +47,48 @@ func TestMiddlewarePreservesRouterStatusCodes(t *testing.T) {
 				t.Fatalf("body = %q, want %q", got, tt.wantBody+"\n")
 			}
 		})
+	}
+}
+
+// A plain error returned by a handler (one that is neither *echo.HTTPError nor an
+// echo.HTTPStatusCoder) must reach Echo's own HTTPErrorHandler unchanged: the middleware
+// only used to wrap it into a fresh 500 *echo.HTTPError for logging purposes, but returned
+// that wrapped error too, replacing whatever the handler actually returned.
+func TestMiddlewareForwardsPlainHandlerErrorUnchanged(t *testing.T) {
+	var logBuf bytes.Buffer
+	e := echo.New()
+	e.Use(New(slog.New(slog.NewJSONHandler(&logBuf, nil))))
+
+	wantErr := errors.New("my error")
+	e.GET("/boom", func(c *echo.Context) error { return wantErr })
+
+	var gotErr error
+	e.HTTPErrorHandler = func(c *echo.Context, err error) {
+		gotErr = err
+		_, status := echo.ResolveResponseStatus(c.Response(), err)
+		_ = c.NoContent(status)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+	if !errors.Is(gotErr, wantErr) {
+		t.Fatalf("HTTPErrorHandler received %v, want the original error %v unchanged", gotErr, wantErr)
+	}
+
+	var logLine map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(logBuf.Bytes()), &logLine); err != nil {
+		t.Fatalf("failed to parse log line: %v (line: %s)", err, logBuf.String())
+	}
+	if msg, _ := logLine["msg"].(string); msg != wantErr.Error() {
+		t.Fatalf("log msg = %q, want %q", msg, wantErr.Error())
+	}
+	response, _ := logLine["response"].(map[string]any)
+	if status, _ := response["status"].(float64); int(status) != http.StatusInternalServerError {
+		t.Fatalf("log response.status = %v, want %d", response["status"], http.StatusInternalServerError)
 	}
 }

@@ -282,19 +282,22 @@ func NewWithConfig(logger *slog.Logger, config Config) echo.MiddlewareFunc {
 				}
 			}
 
-			if httpErr != nil {
-				attributes = append(
-					attributes,
-					slog.Any("error", map[string]any{
-						"code":     httpErr.Code,
-						"message":  httpErr.Message,
-						"internal": httpErr.Unwrap(),
-					}),
-				)
-
-				if httpErr.Unwrap() != nil {
-					attributes = append(attributes, slog.String("internal", httpErr.Unwrap().Error()))
+			if err != nil {
+				errAttr := map[string]any{
+					"code":    status,
+					"message": errMsg,
 				}
+
+				// httpErr is nil unless err is an actual *echo.HTTPError: only that type can
+				// carry an explicitly wrapped cause (via .Wrap), distinct from its own message.
+				if httpErr != nil {
+					if internal := httpErr.Unwrap(); internal != nil {
+						errAttr["internal"] = internal
+						attributes = append(attributes, slog.String("internal", internal.Error()))
+					}
+				}
+
+				attributes = append(attributes, slog.Any("error", errAttr))
 			}
 
 			if config.WithCustomMessage != nil {

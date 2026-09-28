@@ -218,20 +218,22 @@ func TestMiddlewareCustomMessageReceivesOriginalError(t *testing.T) {
 	}
 }
 
-// The structured "error" log attribute (code/message/internal) is only built from an actual
-// *echo.HTTPError. Before this fix every non-nil handler error was forced into one, so the
-// attribute always appeared, with a misleading code (always 500, even for a real 404/405).
-// Now it only appears for a genuine *echo.HTTPError; other status-carrying or plain errors
-// rely on the top-level msg and response.status fields instead.
-func TestMiddlewareStructuredErrorAttributeOnlyForHTTPError(t *testing.T) {
+// Before this fix, every non-nil handler error was forced into a fresh *echo.HTTPError, so
+// the structured "error" log attribute (code/message) always appeared, but with a misleading
+// code (always 500, even for a real 404/405). It must still appear for every non-nil error,
+// now with the real resolved status instead of a hardcoded 500 — this is exactly the class of
+// error (Echo v5 router sentinels, other HTTPStatusCoder types) this fix is about, so it must
+// not lose structured logging just because it is no longer forced into an *echo.HTTPError.
+func TestMiddlewareStructuredErrorAttributeUsesResolvedStatus(t *testing.T) {
 	tests := []struct {
-		name     string
-		err      error
-		wantAttr bool
+		name        string
+		err         error
+		wantCode    int
+		wantMessage string
 	}{
-		{"real HTTPError", echo.NewHTTPError(http.StatusBadRequest, "bad input"), true},
-		{"custom HTTPStatusCoder", httpStatusCoderError{code: http.StatusTooManyRequests, msg: "please slow down"}, false},
-		{"plain error", errors.New("boom"), false},
+		{"real HTTPError", echo.NewHTTPError(http.StatusBadRequest, "bad input"), http.StatusBadRequest, "bad input"},
+		{"custom HTTPStatusCoder", httpStatusCoderError{code: http.StatusTooManyRequests, msg: "please slow down"}, http.StatusTooManyRequests, "please slow down"},
+		{"plain error", errors.New("boom"), http.StatusInternalServerError, "boom"},
 	}
 
 	for _, tt := range tests {
@@ -249,9 +251,16 @@ func TestMiddlewareStructuredErrorAttributeOnlyForHTTPError(t *testing.T) {
 			if err := json.Unmarshal(bytes.TrimSpace(logBuf.Bytes()), &logLine); err != nil {
 				t.Fatalf("failed to parse log line: %v (line: %s)", err, logBuf.String())
 			}
-			_, hasErrorAttr := logLine["error"]
-			if hasErrorAttr != tt.wantAttr {
-				t.Fatalf("structured \"error\" log attribute present = %v, want %v (log: %s)", hasErrorAttr, tt.wantAttr, logBuf.String())
+
+			errAttr, ok := logLine["error"].(map[string]any)
+			if !ok {
+				t.Fatalf("missing structured \"error\" log attribute (log: %s)", logBuf.String())
+			}
+			if code, _ := errAttr["code"].(float64); int(code) != tt.wantCode {
+				t.Fatalf("error.code = %v, want %d (a hardcoded 500 here would hide the real status)", errAttr["code"], tt.wantCode)
+			}
+			if msg, _ := errAttr["message"].(string); msg != tt.wantMessage {
+				t.Fatalf("error.message = %q, want %q", msg, tt.wantMessage)
 			}
 		})
 	}

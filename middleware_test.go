@@ -15,6 +15,44 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
+func TestMiddlewareLogsResponsePrefixAcrossWrites(t *testing.T) {
+	var logBuf bytes.Buffer
+	e := echo.New()
+	config := DefaultConfig()
+	config.WithResponseBody = true
+	e.Use(NewWithConfig(slog.New(slog.NewJSONHandler(&logBuf, nil)), config))
+	prefix := strings.Repeat("a", ResponseBodyMaxSize-2)
+	e.GET("/", func(c *echo.Context) error {
+		for _, chunk := range []string{prefix, "bcde", "", "f"} {
+			if _, err := c.Response().Write([]byte(chunk)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if got := rec.Body.String(); got != prefix+"bcdef" {
+		t.Fatalf("response length = %d, want %d", len(got), len(prefix)+5)
+	}
+	var logLine struct {
+		Response struct {
+			Body   string `json:"body"`
+			Length int    `json:"length"`
+			Status int    `json:"status"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(logBuf.Bytes(), &logLine); err != nil {
+		t.Fatal(err)
+	}
+	if got := logLine.Response.Body; got != prefix+"bc" {
+		t.Errorf("logged body length = %d, want the first %d response bytes", len(got), ResponseBodyMaxSize)
+	}
+	if logLine.Response.Length != len(prefix)+5 || logLine.Response.Status != http.StatusOK {
+		t.Errorf("logged response length = %d, status = %d", logLine.Response.Length, logLine.Response.Status)
+	}
+}
+
 // Echo v5's router returns sentinel errors (echo.ErrNotFound, echo.ErrMethodNotAllowed, ...)
 // that implement echo.HTTPStatusCoder but are not *echo.HTTPError. The middleware must not
 // downgrade these to a 500, since it forwards its returned error to Echo's real error handler.

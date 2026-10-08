@@ -25,13 +25,8 @@ type bodyWriter struct {
 func (w *bodyWriter) Write(b []byte) (int, error) {
 	length := len(b)
 
-	if w.body != nil {
-		if w.body.Len()+length > w.maxSize {
-			w.body.Truncate(min(w.maxSize, length, w.body.Len()))
-			w.body.Write(b[:min(w.maxSize-w.body.Len(), length)])
-		} else {
-			w.body.Write(b)
-		}
+	if w.body != nil && w.body.Len() < w.maxSize {
+		w.body.Write(b[:min(w.maxSize-w.body.Len(), length)])
 	}
 
 	w.bytes += length //nolint:staticcheck
